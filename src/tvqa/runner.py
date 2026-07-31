@@ -6,6 +6,7 @@ instead of one round trip per step. On failure it saves a screenshot to
 """
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -62,6 +63,11 @@ def _exec_step(step: dict, ctx: _Ctx) -> None:
         ctx.device.open_app(step["open_app"])
     elif "keyevent" in step:
         ctx.adb.keyevent(step["keyevent"])
+    elif "type" in step:
+        raw = str(step["type"])
+        expanded = os.path.expandvars(raw)  # support $VAR or ${VAR}
+        text = expanded.replace("\\", "\\\\").replace('"', '\\"').replace(" ", "%s")
+        ctx.adb.shell(f'input text "{text}"')
     elif "press" in step:
         ctx.device.press(step["press"])
     elif "sleep" in step:

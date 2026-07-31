@@ -1,11 +1,26 @@
 name: login
+# Calibrated 2026-07-31 on emulator-5554 with EpicTV (Metro bundler).
+# IMPORTANT: replace env vars with real credentials before running, or set
+# TVQA_USERNAME / TVQA_PASSWORD in your shell.
 steps:
-  - open_app: EpicTV   # → _facts.yml: dogfood.app_name
+  - open_app: EpicTV
   - wait_state: login_form
     timeout: 20
-  # Navigation to credentials + submit is DPAD-based unless the a11y validation
-  # showed stable refs — adjust after running Task 13's live check.
+  - keyevent: DPAD_UP
+  - keyevent: DPAD_UP
+  - keyevent: DPAD_UP
   - keyevent: DPAD_CENTER
-  - wait_log: "auth.*success"
-    timeout: 30
-  - assert_state: home_screen_rail
+  - sleep: 1
+  - type: "$TVQA_USERNAME"
+  - keyevent: 66
+  - sleep: 1
+  - keyevent: DPAD_CENTER
+  - sleep: 1
+  - type: "$TVQA_PASSWORD"
+  - keyevent: 66
+  - sleep: 1
+  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_CENTER
+  - wait_state: profile_select
+    timeout: 15

@@ -5,3 +5,4 @@ __pycache__/
 .venv/
 projects/*/artifacts/
 .claude/
+.env

@@ -1,0 +1,179 @@
+# AGENTS.md — tvqa
+
+> **Token-budget rules for AI agents driving this CLI.**  
+> Violating these rules burns the user's subscription in minutes. This file is
+> mandatory reading before touching any device operation.
+
+## Context
+
+This repo contains **tvqa** — a text-first QA CLI for React Native Android TV apps.
+It was built after a 5-hour Claude Pro subscription was consumed in ~5 minutes
+by an agent doing `adb screencap` → `Read PNG` loops (~165K tokens). The fix is
+to push all verification **out of the LLM context and into local scripts**.
+
+## Golden Rule
+
+**Never `Read` a PNG unless `tvqa run` returns `passed: false` AND the `detail`
+field does not explain why.**
+
+---
+
+## Allowed commands (whitelist)
+
+These are the **only** device-interaction commands an agent may use:
+
+```bash
+# Pre-flight
+tvqa hygiene check
+tvqa devices
+
+# Execute a complete E2E flow (ONE command → ONE JSON line)
+tvqa run <flow.yaml> --project <project-dir>
+
+# Check a single state
+tvqa state check --states-file <states.yaml> --state <name>
+
+# Wait for a state (server-side polling)
+tvqa state wait --states-file <states.yaml> --state <name> --timeout <s>
+
+# Wait for a logcat line
+tvqa log-wait "<regex>" --timeout <s>
+
+# Snapshot text (calibration only — NOT for routine verification)
+tvqa snapshot
+```
+
+## Forbidden commands (blacklist)
+
+Running any of these without explicit human approval is a rule violation:
+
+```bash
+# NEVER — burns tokens on every invocation
+adb exec-out screencap -p > shot.png          # ❌
+adb shell input keyevent ... && screencap ...  # ❌
+Read shot.png                                   # ❌ (image in context)
+adb logcat                                      # ❌ (multi-line dump)
+```
+
+## Workflow for each EpicTV test session
+
+### 1. Pre-flight (always)
+
+```bash
+tvqa hygiene check
+tvqa devices
+```
+
+If `clean: false`, run `tvqa hygiene clean` first.
+
+### 2. Run the flow
+
+```bash
+tvqa run projects/epic-app/flows/login.yaml --project projects/epic-app
+```
+
+**Output is ONE JSON line.** Example:
+
+```json
+{"flow": "login", "passed": true, "steps": 18, "failed_step": null, "detail": "ok", "evidence": null, "duration_s": 14.2}
+```
+
+**Do not ask for more output. Do not run another command to "verify". Parse the JSON.**
+
+### 3. If `passed: false`
+
+Read the `detail` field first. It tells you exactly what failed:
+
+```json
+{"passed": false, "failed_step": 4, "detail": "state 'login_form' not seen within 20.0s", "evidence": "projects/epic-app/artifacts/login-step4.png"}
+```
+
+- If `detail` is clear → adjust the YAML and re-run. **Do not read the PNG.**
+- If `detail` is ambiguous (e.g., OCR mismatch without telling you what text was found) → read the PNG **once** via `Read <evidence>`.
+
+### 4. If you need to debug a step
+
+Use **text-only** commands:
+
+```bash
+# Check current state
+tvqa state which --states-file projects/epic-app/states.yaml
+
+# Check a specific state
+tvqa state check --states-file projects/epic-app/states.yaml --state login_form
+
+# Check accessibility tree (text only)
+tvqa snapshot
+```
+
+All of these return text. **None return images.**
+
+---
+
+## Calibration protocol (human or supervised only)
+
+Adding a new screen to `states.yaml` requires understanding the app's real UI.
+This is the **only** phase where a human (or supervised agent) may inspect the
+emulator visually.
+
+1. Navigate to the screen on the emulator
+2. Run `tvqa snapshot`
+3. If the snapshot shows useful text → `method: a11y`
+4. If the snapshot is empty/noisy → `method: ocr` or `phash`
+5. For `ocr`: the human measures the bounding box in Preview/GIMP and writes
+   the `[left, top, right, bottom]` coordinates into `states.yaml`
+6. **Commit the calibrated YAML** so future agents never need to measure again
+
+---
+
+## Why agent-device snapshots can be sparse
+
+If `tvqa snapshot` returns only 2 nodes (e.g., `@e1 [group] "Back"`), it usually
+means:
+- A system modal is covering the app (permission dialog, update banner)
+- The app is on a video player screen with poor a11y
+- The app hasn't finished loading
+
+**Do not conclude "a11y doesn't work for this app".** Dismiss the modal
+(`keyevent: DPAD_CENTER`), wait (`sleep: 2`), and retry `tvqa snapshot`.
+
+---
+
+## Credentials handling
+
+The login flow uses environment variables:
+
+```bash
+export TVQA_USERNAME=your_qa_username
+export TVQA_PASSWORD=your_qa_password
+tvqa run projects/epic-app/flows/login.yaml --project projects/epic-app
+```
+
+Do **not** hardcode credentials in committed YAML. The committed `login.yaml` uses
+`$TVQA_USERNAME` / `$TVQA_PASSWORD` and `runner.py` expands them via `os.path.expandvars()`.
+
+---
+
+## Example correct session
+
+```bash
+$ tvqa hygiene check
+{"clean": true, "issues": []}
+
+$ tvqa run projects/epic-app/flows/login.yaml --project projects/epic-app
+{"flow": "login", "passed": true, "steps": 18, ...}
+
+$ tvqa run projects/epic-app/flows/network_fault_recovery.yaml --project projects/epic-app
+{"flow": "network_fault_recovery", "passed": true, "steps": 8, ...}
+```
+
+**Total tokens consumed by the agent: ~120 (two round trips).**  
+**Total device interactions verified: two complete E2E flows.**
+
+---
+
+## Enforcement
+
+If an agent violates these rules (uses `adb screencap`, reads PNGs routinely, or
+dumps `adb logcat` into the context), stop the session immediately and ask the
+user whether to continue with corrected instructions.
