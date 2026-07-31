@@ -11,6 +11,7 @@
 #   3. If the snapshot shows useful text nodes → method: a11y.
 #   4. If the snapshot is empty/noisy → method: ocr (measure box in Preview/GIMP).
 #   5. Write the state into this file and commit it so future agents never need to measure again.
+
 states:
   # --- Authentication ---
   login_form:
@@ -19,7 +20,7 @@ states:
 
   profile_select:
     method: a11y
-    expected_text: "Quién está mirando"
+    expected_text: "Who is watching?"
 
   auth_error_modal:
     method: ocr
@@ -29,22 +30,25 @@ states:
   # --- Home & Navigation ---
   home_screen_rail:
     method: a11y
-    expected_text: "Home"
+    expected_text: "Top 10"
 
   search_screen:
     method: a11y
-    expected_text: "Buscar"
+    # Language-dependent: "Titles, people" (EN) vs "Títulos, Personas" (ES)
+    expected_text: "Titles, people"
 
   # --- VOD Player ---
   vod_player:
     method: ocr
     box: [80, 940, 500, 1000]
-    expected_substring: ":"          # time display like "03:10 / 01:49:23"
+    expected_substring: ":"
 
   # --- Live TV ---
   live_tv_grid:
     method: a11y
-    expected_text: "En vivo"
+    # NOTE: text depends on app language/profile. "Live TV" = English, "TV en vivo" = Spanish.
+    # If this fails, switch to OCR on the channel grid region or update to match current language.
+    expected_text: "TV en vivo"
 
   channel_unavailable:
     method: ocr
@@ -54,11 +58,7 @@ states:
   # --- Settings ---
   settings_root:
     method: a11y
-    expected_text: "Configuración"
-
-  settings_submenu:
-    method: a11y
-    expected_text: "Cuenta"       # TODO(calibrate): adjust to actual first submenu header
+    expected_text: "Cuenta"
 
   # --- Network / Error ---
   network_error_modal:

@@ -1,12 +1,15 @@
 # S9 — Lifecycle (background/foreground)
-# Preconditions: logged in, playing a VOD
-# Steps: HOME (background) → relaunch (foreground) → verify resumes to Home, no zombie player
+# Preconditions: logged in, any screen
+# Steps: ensure on Home → open VOD → play → HOME (background) → relaunch → verify clean resume
 name: s9_lifecycle
 description: "Background the app during VOD playback, then relaunch; verify clean resume."
 steps:
-  # Start from home and open a VOD
-  - wait_state: home_screen_rail
-    timeout: 15
+  # Ensure on Home
+  - shell: "input keyevent 21 21 21 21 21 21 21 21 21 21"
+  - sleep: 0.5
+  - keyevent: DPAD_CENTER
+  - sleep: 2
+  # Navigate to Movies and open a VOD
   - keyevent: DPAD_DOWN
   - sleep: 0.5
   - keyevent: DPAD_DOWN

@@ -1,12 +1,19 @@
 # S5 — VOD next-episode
-# Preconditions: logged in, playing a series episode
-# Steps: series title → play → trigger next-episode control → verify advances without remount-to-start
+# Preconditions: logged in, any screen
+# Steps: sidebar → Series → open series → play → trigger next-episode
 name: s5_vod_next_episode
 description: "Play a series episode and trigger next-episode; verify advances cleanly."
 steps:
-  - wait_state: home_screen_rail
-    timeout: 15
-  # Navigate to a series row (TODO: calibrate D-pad to reach series)
+  # Sidebar → Series (from Home-focused sidebar, DOWN×3)
+  - shell: "input keyevent 21 21 21 21 21 21 21 21 21 21"
+  - sleep: 0.5
+  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_DOWN
+  - sleep: 0.3
+  - keyevent: DPAD_CENTER
+  - sleep: 2
+  # Navigate to a series row and open
   - keyevent: DPAD_DOWN
   - sleep: 0.5
   - keyevent: DPAD_DOWN
@@ -19,7 +26,6 @@ steps:
   - keyevent: DPAD_CENTER
   - sleep: 3
   # Trigger next-episode (TODO: calibrate how next-episode UI appears)
-  # Typically: DPAD_RIGHT or DOWN to focus next-episode button, then CENTER
   - keyevent: DPAD_RIGHT
   - sleep: 0.5
   - keyevent: DPAD_CENTER

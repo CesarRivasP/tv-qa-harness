@@ -72,6 +72,8 @@ def _exec_step(step: dict, ctx: _Ctx) -> None:
         ctx.device.press(step["press"])
     elif "sleep" in step:
         time.sleep(float(step["sleep"]))
+    elif "shell" in step:
+        ctx.adb.shell(step["shell"])
     elif "wait_state" in step:
         name = step["wait_state"]
         timeout = float(step.get("timeout", 30))

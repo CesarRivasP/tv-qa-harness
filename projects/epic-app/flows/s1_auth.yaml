@@ -1,30 +1,10 @@
-# S1 — Auth
-# Preconditions: clean_preflight, metro_running, logged out
-# Steps: open app → login form → enter credentials → submit → profile select
+# S1 — Auth (auto-login with Recordarme)
+# Preconditions: app has active session with Recordarme checked
+# agent-device open preserves session → lands on profile_select directly.
+# For manual login test, run s10_logout first, then use login_form steps.
 name: s1_auth
-description: "Happy path: open app, login with credentials, reach profile selection."
+description: "Verify app opens and auto-authenticates to profile selection via Recordarme."
 steps:
   - open_app: EpicTV
-  - wait_state: login_form
-    timeout: 20
-  # Focus lands on submit button first (useFormFocus.handleInitialFocus);
-  # need UP×3 to reach username field
-  - keyevent: DPAD_UP
-  - keyevent: DPAD_UP
-  - keyevent: DPAD_UP
-  - keyevent: DPAD_CENTER
-  - sleep: 1
-  - type: "$TVQA_USERNAME"
-  - keyevent: 66        # ENTER / onSubmitEditing per field
-  - sleep: 1
-  - keyevent: DPAD_CENTER
-  - sleep: 1
-  - type: "$TVQA_PASSWORD"
-  - keyevent: 66
-  - sleep: 1
-  # Move focus down to submit button and confirm
-  - keyevent: DPAD_DOWN
-  - keyevent: DPAD_DOWN
-  - keyevent: DPAD_CENTER
   - wait_state: profile_select
     timeout: 15

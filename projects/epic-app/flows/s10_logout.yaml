@@ -1,21 +1,40 @@
 # S10 — Logout
-# Preconditions: logged in, at home
-# Steps: Settings → logout → verify returns to login form and session cleared
+# Preconditions: logged in, any screen
+# Steps: sidebar → Settings → navigate to Log out → confirm → verify returns to login form
 name: s10_logout
 description: "Navigate to logout in Settings, confirm, verify returned to login form."
 steps:
-  - wait_state: home_screen_rail
-    timeout: 15
-  # Navigate to Settings tab (TODO: calibrate from home)
-  - keyevent: DPAD_RIGHT  # TODO(calibrate): reach Settings menu item
-  - keyevent: DPAD_RIGHT
-  - keyevent: DPAD_RIGHT
-  - keyevent: DPAD_RIGHT
+  # Sidebar: LEFT×10 → UP×10 → DOWN×9 to Settings
+  - shell: "input keyevent 21 21 21 21 21 21 21 21 21 21"
+  - sleep: 0.5
+  - keyevent: DPAD_UP
+  - keyevent: DPAD_UP
+  - keyevent: DPAD_UP
+  - keyevent: DPAD_UP
+  - keyevent: DPAD_UP
+  - keyevent: DPAD_UP
+  - keyevent: DPAD_UP
+  - keyevent: DPAD_UP
+  - keyevent: DPAD_UP
+  - keyevent: DPAD_UP
+  - sleep: 0.3
+  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_DOWN
+  - sleep: 0.3
   - keyevent: DPAD_CENTER
   - sleep: 2
   - wait_state: settings_root
     timeout: 15
-  # Navigate to logout option (TODO: calibrate position)
+  # Navigate to logout option (from Settings top, DOWN×4 to Log out)
+  - keyevent: DPAD_DOWN
+  - sleep: 0.3
   - keyevent: DPAD_DOWN
   - sleep: 0.3
   - keyevent: DPAD_DOWN
@@ -24,7 +43,7 @@ steps:
   - sleep: 0.3
   - keyevent: DPAD_CENTER
   - sleep: 1
-  # Confirm logout if prompted
+  # Confirm logout
   - keyevent: DPAD_CENTER
   - sleep: 2
   # Should land on login form
