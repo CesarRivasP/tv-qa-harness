@@ -1,0 +1,25 @@
+[project]
+name = "tvqa"
+version = "0.1.0"
+description = "Text-first QA harness for driving RN TV apps without burning vision tokens on screenshots"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.1",
+    "Pillow>=10.0",
+    "imagehash>=4.3",
+    "pytesseract>=0.3.10",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+tvqa = "tvqa.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

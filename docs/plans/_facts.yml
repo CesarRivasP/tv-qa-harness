@@ -1,0 +1,53 @@
+# _facts.yml — SINGLE SOURCE OF TRUTH for tvqa MVP plan
+# Every datum that appears in >1 place in the plan lives HERE.
+# Editing a value here → future `sync` pass updates all prose occurrences.
+
+feature: tvqa-mvp
+title: tv-qa-harness MVP Implementation Plan
+status: in-progress
+dates:
+  drafted: 2026-07-31
+
+# --- infrastructure constants (shared across plan, tests, README, project.yaml) ---
+infra:
+  python_min: "3.11"
+  node_min: "22.12"
+  agent_device_install: "npm install -g agent-device@latest"
+
+  # Default AVD / emulator baseline
+  default_serial: "emulator-5554"
+  default_resolution: "1920x1080"
+
+  # Proxy / network fault injection defaults
+  proxy_host_ip: "10.0.2.2"   # Android emulator alias for host machine
+  proxy_port: 8080
+  proxy_keys:
+    - "http_proxy"
+    - "global_http_proxy_host"
+    - "global_http_proxy_port"
+
+  # OCR fallback tier
+  ocr_languages: "spa+eng"      # default tesseract lang pair
+
+# --- dogfood project (epic-app) ---
+dogfood:
+  package: "com.epictv"
+  app_name: "EpicTV"
+
+# --- version singleton ---
+version: "0.1.0"
+
+# --- Python dependencies (shared between pyproject.toml and README) ---
+dependencies:
+  runtime:
+    - "click>=8.1"
+    - "Pillow>=10.0"
+    - "imagehash>=4.3"
+    - "pytesseract>=0.3.10"
+    - "PyYAML>=6.0"
+  dev:
+    - "pytest>=8.0"
+
+# --- docs in this set (for audit protocol) ---
+docs:
+  - { id: "plan", file: "2026-07-31-mvp-harness.md", role: implementation }
