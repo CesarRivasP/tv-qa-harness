@@ -1,0 +1,30 @@
+# S7 — Search
+# Preconditions: logged in, at home
+# Steps: open Search → type query via native keyboard → open result
+name: s7_search
+description: "Open search, type a query with the native keyboard, open a result."
+steps:
+  - wait_state: home_screen_rail
+    timeout: 15
+  # Navigate to Search tab (TODO: calibrate from home)
+  - keyevent: DPAD_RIGHT  # TODO(calibrate): reach Search menu item
+  - keyevent: DPAD_RIGHT
+  - keyevent: DPAD_RIGHT
+  - keyevent: DPAD_CENTER
+  - sleep: 2
+  - wait_state: search_screen
+    timeout: 15
+  # Focus search input and open native keyboard
+  - keyevent: DPAD_CENTER
+  - sleep: 1
+  # Type query (TODO: adjust query text)
+  - type: "rick"
+  - keyevent: 66
+  - sleep: 2
+  # Navigate to first result and open
+  - keyevent: DPAD_DOWN
+  - sleep: 0.5
+  - keyevent: DPAD_CENTER
+  - sleep: 2
+  # Should land on title detail or player
+  - assert_state: vod_player

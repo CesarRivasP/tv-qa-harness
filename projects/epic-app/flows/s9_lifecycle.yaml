@@ -1,0 +1,29 @@
+# S9 — Lifecycle (background/foreground)
+# Preconditions: logged in, playing a VOD
+# Steps: HOME (background) → relaunch (foreground) → verify resumes to Home, no zombie player
+name: s9_lifecycle
+description: "Background the app during VOD playback, then relaunch; verify clean resume."
+steps:
+  # Start from home and open a VOD
+  - wait_state: home_screen_rail
+    timeout: 15
+  - keyevent: DPAD_DOWN
+  - sleep: 0.5
+  - keyevent: DPAD_DOWN
+  - sleep: 0.5
+  - keyevent: DPAD_CENTER
+  - sleep: 2
+  - wait_state: vod_player
+    timeout: 15
+  - keyevent: DPAD_CENTER
+  - sleep: 3
+  # Background app
+  - keyevent: HOME
+  - sleep: 3
+  # Foreground / relaunch
+  - open_app: EpicTV
+  - sleep: 3
+  # Should resume to Home (not crash, no zombie player audio)
+  - wait_state: home_screen_rail
+    timeout: 15
+  - assert_state: home_screen_rail

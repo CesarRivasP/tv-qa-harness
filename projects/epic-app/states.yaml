@@ -3,20 +3,64 @@
 #           Resolution-independent: no re-calibration if the AVD changes density/size.
 #   ocr   — fallback for screens with poor a11y trees. Boxes are
 #           (left, top, right, bottom) in physical pixels at expected_resolution.
+#   phash — image-perceptual-hash match (future).
+#
+# Calibration protocol:
+#   1. Navigate to the screen on the emulator.
+#   2. Run `tvqa snapshot` to inspect the a11y tree.
+#   3. If the snapshot shows useful text nodes → method: a11y.
+#   4. If the snapshot is empty/noisy → method: ocr (measure box in Preview/GIMP).
+#   5. Write the state into this file and commit it so future agents never need to measure again.
 states:
+  # --- Authentication ---
   login_form:
-    method: a11y                    # or ocr [630, 260, 1290, 320] if snapshot is poor
+    method: a11y
     expected_text: "Inicia sesión"
 
+  profile_select:
+    method: a11y
+    expected_text: "Quién está mirando"
+
+  auth_error_modal:
+    method: ocr
+    box: [600, 400, 1320, 520]
+    expected_substring: "expirado"
+
+  # --- Home & Navigation ---
   home_screen_rail:
     method: a11y
     expected_text: "Home"
 
+  search_screen:
+    method: a11y
+    expected_text: "Buscar"
+
+  # --- VOD Player ---
+  vod_player:
+    method: ocr
+    box: [80, 940, 500, 1000]
+    expected_substring: ":"          # time display like "03:10 / 01:49:23"
+
+  # --- Live TV ---
+  live_tv_grid:
+    method: a11y
+    expected_text: "En vivo"
+
   channel_unavailable:
-    method: ocr                     # likely a poor-a11y screen; validate live
+    method: ocr
     box: [700, 420, 1220, 480]
     expected_substring: "unavailable"
 
+  # --- Settings ---
+  settings_root:
+    method: a11y
+    expected_text: "Configuración"
+
+  settings_submenu:
+    method: a11y
+    expected_text: "Cuenta"       # TODO(calibrate): adjust to actual first submenu header
+
+  # --- Network / Error ---
   network_error_modal:
     method: ocr
     box: [700, 430, 1220, 490]

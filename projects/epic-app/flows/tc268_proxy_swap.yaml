@@ -1,0 +1,39 @@
+# #268 — Mid-playback proxy swap (black flash + rewind fix)
+# Goal: verify the original symptom (black flash + rewind to 00:00) never reproduces.
+# Harness: vodswap mode (only mode that yields a positive swap winner).
+# Primary check: TC8 no-black-flash + TC2/TC4 positive swap end-to-end.
+# Reference: e2e_test_suite.md §#268
+name: tc268_proxy_swap
+description: "VOD playback with vodswap proxy degradation; verify swap preserves position, no black flash."
+steps:
+  - open_app: EpicTV
+  - wait_state: home_screen_rail
+    timeout: 20
+  # Open a VOD title (TODO: calibrate navigation to a series/VOD row)
+  - keyevent: DPAD_DOWN
+  - sleep: 0.5
+  - keyevent: DPAD_DOWN
+  - sleep: 0.5
+  - keyevent: DPAD_CENTER
+  - sleep: 2
+  - wait_state: vod_player
+    timeout: 15
+  - keyevent: DPAD_CENTER
+  - sleep: 5
+  # Start proxy degrading the active proxy (vodswap)
+  - proxy_start:
+      addon: epic_stall_test.py
+      env:
+        EPIC_MODE: vodswap
+        EPIC_TARGET_PROXY: proxy2
+        EPIC_TARGET_SPEED_FAIL: kill   # flow.kill the active proxy's test URL
+  - sleep: 15       # allow swap to trigger via onError or excessive buffering
+  # Proxy should swap to a healthy proxy; stop to clean up
+  - proxy_stop: {}
+  - sleep: 5
+  # Should still be in player, not black/rewound
+  - assert_state: vod_player
+  # Return to home
+  - keyevent: BACK
+  - sleep: 1
+  - assert_state: home_screen_rail

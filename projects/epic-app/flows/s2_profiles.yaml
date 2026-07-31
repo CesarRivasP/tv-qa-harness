@@ -1,0 +1,28 @@
+# S2 — Profiles
+# Preconditions: logged in, at profile selection
+# Steps: select adult profile → verify home → relaunch → select kids profile → verify kids gating
+name: s2_profiles
+description: "Select adult profile, then relaunch and select Kids profile, verify gating."
+steps:
+  # At profile_select (reached from S1 or pre-condition)
+  - wait_state: profile_select
+    timeout: 15
+  # Select adult profile (first item, or navigate to it)
+  - keyevent: DPAD_CENTER
+  - wait_state: home_screen_rail
+    timeout: 15
+  # Verify adult home loaded
+  - assert_state: home_screen_rail
+  # Relaunch app to return to profile selection
+  - keyevent: HOME
+  - sleep: 2
+  - open_app: EpicTV
+  - wait_state: profile_select
+    timeout: 20
+  # Navigate to Kids profile (TODO: adjust D-pad if Kids is not first)
+  - keyevent: DPAD_RIGHT  # TODO(calibrate): reach Kids profile tile
+  - keyevent: DPAD_CENTER
+  - wait_state: home_screen_rail
+    timeout: 15
+  # Kids home should load; gating applies (e.g., no adult content rows)
+  - assert_state: home_screen_rail

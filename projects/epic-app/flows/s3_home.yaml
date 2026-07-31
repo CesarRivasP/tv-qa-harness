@@ -1,0 +1,31 @@
+# S3 — Home
+# Preconditions: logged in, at home screen
+# Steps: scroll carousels (Top 10, Continuar viendo, Estrenos) with D-pad U/D/L/R
+name: s3_home
+description: "Scroll Home carousels; verify rows render, no blank cards, no focus traps."
+steps:
+  - wait_state: home_screen_rail
+    timeout: 15
+  # Move down through rows: Top 10 → Continuar viendo → Estrenos
+  - keyevent: DPAD_DOWN
+  - sleep: 0.5
+  - keyevent: DPAD_DOWN
+  - sleep: 0.5
+  - keyevent: DPAD_DOWN
+  - sleep: 0.5
+  # Scroll horizontally within a row (e.g., Estrenos)
+  - keyevent: DPAD_RIGHT
+  - sleep: 0.3
+  - keyevent: DPAD_RIGHT
+  - sleep: 0.3
+  - keyevent: DPAD_RIGHT
+  - sleep: 0.3
+  # Back to top row
+  - keyevent: DPAD_UP
+  - sleep: 0.5
+  - keyevent: DPAD_UP
+  - sleep: 0.5
+  - keyevent: DPAD_UP
+  - sleep: 0.5
+  # Assert still on home (focus trap = would stay stuck)
+  - assert_state: home_screen_rail

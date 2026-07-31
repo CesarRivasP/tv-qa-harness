@@ -1,0 +1,33 @@
+# S10 — Logout
+# Preconditions: logged in, at home
+# Steps: Settings → logout → verify returns to login form and session cleared
+name: s10_logout
+description: "Navigate to logout in Settings, confirm, verify returned to login form."
+steps:
+  - wait_state: home_screen_rail
+    timeout: 15
+  # Navigate to Settings tab (TODO: calibrate from home)
+  - keyevent: DPAD_RIGHT  # TODO(calibrate): reach Settings menu item
+  - keyevent: DPAD_RIGHT
+  - keyevent: DPAD_RIGHT
+  - keyevent: DPAD_RIGHT
+  - keyevent: DPAD_CENTER
+  - sleep: 2
+  - wait_state: settings_root
+    timeout: 15
+  # Navigate to logout option (TODO: calibrate position)
+  - keyevent: DPAD_DOWN
+  - sleep: 0.3
+  - keyevent: DPAD_DOWN
+  - sleep: 0.3
+  - keyevent: DPAD_DOWN
+  - sleep: 0.3
+  - keyevent: DPAD_CENTER
+  - sleep: 1
+  # Confirm logout if prompted
+  - keyevent: DPAD_CENTER
+  - sleep: 2
+  # Should land on login form
+  - wait_state: login_form
+    timeout: 15
+  - assert_state: login_form

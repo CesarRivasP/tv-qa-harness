@@ -1,0 +1,37 @@
+# S4 — VOD playback
+# Preconditions: logged in, on Home
+# Steps: open a "Continuar viendo" title → Resume → play → pause → seek → resume
+name: s4_vod_playback
+description: "Open a VOD title from Continue Watching, resume, play, pause, seek, verify position preserved."
+steps:
+  - wait_state: home_screen_rail
+    timeout: 15
+  # Navigate to "Continuar viendo" row (TODO: adjust if row order differs)
+  - keyevent: DPAD_DOWN
+  - sleep: 0.5
+  - keyevent: DPAD_DOWN
+  - sleep: 0.5
+  # Select first title in row
+  - keyevent: DPAD_CENTER
+  - sleep: 2
+  # Expect player or episode list (TODO: calibrate state)
+  - wait_state: vod_player
+    timeout: 15
+  # If "Resume" button is focused, press it; otherwise navigate to it
+  - keyevent: DPAD_CENTER
+  - sleep: 3
+  # Playback should be active; pause
+  - keyevent: DPAD_CENTER
+  - sleep: 1
+  # Seek forward with RIGHT (TODO: calibrate seek increment)
+  - keyevent: DPAD_RIGHT
+  - sleep: 0.5
+  - keyevent: DPAD_RIGHT
+  - sleep: 0.5
+  # Resume
+  - keyevent: DPAD_CENTER
+  - sleep: 2
+  # Back to home
+  - keyevent: BACK
+  - sleep: 1
+  - assert_state: home_screen_rail

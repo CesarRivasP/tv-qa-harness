@@ -1,0 +1,28 @@
+# #257 — CDN 502 de-noise (Sentry)
+# Goal: proxy-host 502 does NOT reach Sentry; 502 from different host DOES;
+# non-502 from proxy host DOES.
+# Note: this is primarily unit-tested, but we include a device smoke to verify
+# the filter is active in the running build.
+# Reference: e2e_test_suite.md §#257
+name: tc257_cdn_502
+description: "Verify proxy 502s are silenced in Sentry (negative check: no new event for proxy 502)."
+steps:
+  # Start proxy in origin403 mode to trigger proxy errors
+  - proxy_start:
+      addon: epic_stall_test.py
+      env:
+        EPIC_MODE: origin403
+        EPIC_EXPIRE_AFTER_S: 10
+  - open_app: EpicTV
+  - wait_state: home_screen_rail
+    timeout: 20
+  # Navigate to Live TV to trigger proxy segments
+  - keyevent: DPAD_RIGHT  # TODO(calibrate)
+  - keyevent: DPAD_RIGHT
+  - keyevent: DPAD_CENTER
+  - sleep: 5
+  - proxy_stop: {}
+  # ASSERTION: no REACT-NATIVE-1YT event should appear in Sentry for proxy 502.
+  # This is a manual/oracle step: the test engineer inspects Sentry dashboard
+  # for the QA session. tvqa cannot read Sentry directly.
+  - shell: "echo 'MANUAL: verify no new REACT-NATIVE-1YT in Sentry for proxy 502'"

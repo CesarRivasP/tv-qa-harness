@@ -1,0 +1,43 @@
+# #275 — Auth 403 expired_user (Sentry de-noise + revoke-modal copy)
+# Goal: expired subscription shows correct modal, not Sentry noise.
+# Requires a puntual mitmproxy addon that intercepts api.epictv.mx.
+# Note: this addon is NOT epic_stall_test.py; it is a scratchpad addon
+# (auth_expired_user_test.py / auth_refresh_revoke_test.py) that lives in
+# docs/version_1_3_21_issues/testing/ of the app repo.
+# Reference: e2e_test_suite.md §#275
+name: tc275_auth_expired
+description: "Login with 403 expired_user; verify correct modal and no Sentry event for postLoginAuth."
+steps:
+  # Start the auth-specific proxy addon (puntual, intercepts api.epictv.mx)
+  - proxy_start:
+      addon: auth_expired_user_test.py
+      env: {}
+  - open_app: EpicTV
+  - wait_state: login_form
+    timeout: 20
+  # Enter credentials and submit
+  - keyevent: DPAD_UP
+  - keyevent: DPAD_UP
+  - keyevent: DPAD_UP
+  - keyevent: DPAD_CENTER
+  - sleep: 1
+  - type: "$TVQA_USERNAME"
+  - keyevent: 66
+  - sleep: 1
+  - keyevent: DPAD_CENTER
+  - sleep: 1
+  - type: "$TVQA_PASSWORD"
+  - keyevent: 66
+  - sleep: 1
+  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_CENTER
+  # Expect expired-subscription modal (not generic error)
+  - sleep: 3
+  - wait_state: auth_error_modal
+    timeout: 15
+  - assert_state: auth_error_modal
+  - proxy_stop: {}
+  # MANUAL/ORACLE: verify Sentry dashboard shows 0 new events for postLoginAuth
+  # with error_code expired_user (should be degraded to breadcrumb only).
+  - shell: "echo 'MANUAL: verify Sentry shows 0 new events for expired_user 403'"

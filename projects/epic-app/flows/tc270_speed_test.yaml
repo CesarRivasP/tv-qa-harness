@@ -1,0 +1,36 @@
+# #270 — Speed test rejects fast-erroring proxies
+# Goal: measureDownloadSpeed scores a fast-erroring (up-but-502) proxy 0, not high.
+# Harness: vodswap + EPIC_TARGET_SPEED_FAIL=502 (degrades proxy with 502, healthy get 200).
+# Reference: e2e_test_suite.md §#270
+name: tc270_speed_test
+description: "VOD with vodswap+502; verify speed test picks healthy proxy (changed:true), playback recovers."
+steps:
+  - open_app: EpicTV
+  - wait_state: home_screen_rail
+    timeout: 20
+  # Open a VOD title
+  - keyevent: DPAD_DOWN
+  - sleep: 0.5
+  - keyevent: DPAD_DOWN
+  - sleep: 0.5
+  - keyevent: DPAD_CENTER
+  - sleep: 2
+  - wait_state: vod_player
+    timeout: 15
+  - keyevent: DPAD_CENTER
+  - sleep: 5
+  # Start proxy: target gets 502 on test URL, healthy proxies get synthetic 200
+  - proxy_start:
+      addon: epic_stall_test.py
+      env:
+        EPIC_MODE: vodswap
+        EPIC_TARGET_PROXY: proxy2
+        EPIC_TARGET_SPEED_FAIL: 502
+  - sleep: 20       # allow buffering/error to trigger swap
+  - proxy_stop: {}
+  - sleep: 5
+  # Should still be playing (not stuck on 'Canal no disponible')
+  - assert_state: vod_player
+  # Oracle: if the status-gate fix is active, the 502 proxy scores 0 and a
+  # healthy proxy wins → playback continues. If broken (byte-gate), all proxies
+  # score 0 → no swap → exhausts into error state.

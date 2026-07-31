@@ -1,0 +1,43 @@
+# #269 — Self-heal on network return (VOD/live)
+# Goal: verify the negative/no-loop path: when player exhausts on a dead proxy,
+# it STAYS exhausted (no infinite reconnect loop).
+# Note: the AVD cannot produce a real NetInfo offline→online transition, so the
+# positive heal path (E2E-1/E2E-5) is unit-only. E2E-2 (live exhausted → stays)
+# IS device-reachable and is the bug that was found+fixed 2026-07-30.
+# Reference: e2e_test_suite.md §#269, Run 2026-07-30
+name: tc269_self_heal
+description: "Live with origin403 until exhaustion; verify player stays on 'Channel unavailable', no heal loop."
+steps:
+  - open_app: EpicTV
+  - wait_state: home_screen_rail
+    timeout: 20
+  # Navigate to Live TV
+  - keyevent: DPAD_RIGHT  # TODO(calibrate): reach Live TV
+  - keyevent: DPAD_RIGHT
+  - keyevent: DPAD_CENTER
+  - sleep: 2
+  - wait_state: live_tv_grid
+    timeout: 15
+  # Open a live channel
+  - keyevent: DPAD_CENTER
+  - sleep: 5
+  # Start origin403 to poison the playlist
+  - proxy_start:
+      addon: epic_stall_test.py
+      env:
+        EPIC_MODE: origin403
+        EPIC_EXPIRE_AFTER_S: 30
+  # Wait for breaker to exhaust (retryCount climbs to MAX_RETRIES=8)
+  - sleep: 90
+  # Verify exhausted state reached (PlayerError / Channel unavailable)
+  - wait_state: channel_unavailable
+    timeout: 30
+  # CRITICAL: after the 2026-07-30 fix, the player should STAY here.
+  # If the pre-fix bug is present, you would see repeated
+  # 'self-heal on network return (exhausted)' lines in logcat every ~35s.
+  # We explicitly do NOT expect that log line here.
+  # (Oracle: `adb logcat | rg 'self-heal'` should show 0 matches after exhaustion.)
+  - proxy_stop: {}
+  - sleep: 30
+  # Should still be on channel_unavailable (not looping back to loading)
+  - assert_state: channel_unavailable

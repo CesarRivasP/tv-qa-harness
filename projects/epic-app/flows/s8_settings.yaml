@@ -1,0 +1,28 @@
+# S8 — Settings
+# Preconditions: logged in, at home
+# Steps: open Settings root → navigate submenus → verify no clipping
+name: s8_settings
+description: "Navigate Settings root and submenus; verify navigable and no clipping."
+steps:
+  - wait_state: home_screen_rail
+    timeout: 15
+  # Navigate to Settings tab (TODO: calibrate from home)
+  - keyevent: DPAD_RIGHT  # TODO(calibrate): reach Settings menu item
+  - keyevent: DPAD_RIGHT
+  - keyevent: DPAD_RIGHT
+  - keyevent: DPAD_RIGHT
+  - keyevent: DPAD_CENTER
+  - sleep: 2
+  - wait_state: settings_root
+    timeout: 15
+  # Navigate into first submenu
+  - keyevent: DPAD_DOWN
+  - sleep: 0.3
+  - keyevent: DPAD_CENTER
+  - sleep: 2
+  - wait_state: settings_submenu
+    timeout: 10
+  # Back to settings root
+  - keyevent: BACK
+  - sleep: 1
+  - assert_state: settings_root
