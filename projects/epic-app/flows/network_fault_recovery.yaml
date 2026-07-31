@@ -1,0 +1,17 @@
+# The money flow: inject an origin-403 fault via mitmproxy, watch the app
+# surface the error, restore the network, verify self-heal — in ONE command.
+name: network_fault_recovery
+steps:
+  - open_app: EpicTV   # → _facts.yml: dogfood.app_name
+  - wait_state: home_screen_rail
+    timeout: 20
+  - proxy_start:
+      addon: epic_stall_test.py
+      env: { EPIC_MODE: origin403 }
+  - keyevent: DPAD_CENTER
+  - wait_state: network_error_modal
+    timeout: 30
+  - proxy_stop: {}
+  - wait_log: "self-heal.*exhausted"
+    timeout: 60
+  - assert_state: home_screen_rail

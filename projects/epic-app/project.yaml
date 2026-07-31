@@ -1,0 +1,9 @@
+# Values sourced from _facts.yml (dogfood / infra namespaces).
+package: com.epictv           # → dogfood.package
+app_name: EpicTV             # → dogfood.app_name
+serial_hint: emulator-5554   # → infra.default_serial
+expected_resolution: "1920x1080"  # → infra.default_resolution
+proxy:
+  host_ip: "10.0.2.2"      # → infra.proxy_host_ip
+  port: 8080                 # → infra.proxy_port
+  addon: epic_stall_test.py

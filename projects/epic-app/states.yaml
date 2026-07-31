@@ -1,0 +1,23 @@
+# Method choice per state is decided by the live validation in this task:
+#   a11y  — preferred; matches against the agent-device accessibility snapshot.
+#           Resolution-independent: no re-calibration if the AVD changes density/size.
+#   ocr   — fallback for screens with poor a11y trees. Boxes are
+#           (left, top, right, bottom) in physical pixels at expected_resolution.
+states:
+  login_form:
+    method: a11y                    # or ocr [630, 260, 1290, 320] if snapshot is poor
+    expected_text: "Inicia sesión"
+
+  home_screen_rail:
+    method: a11y
+    expected_text: "Home"
+
+  channel_unavailable:
+    method: ocr                     # likely a poor-a11y screen; validate live
+    box: [700, 420, 1220, 480]
+    expected_substring: "unavailable"
+
+  network_error_modal:
+    method: ocr
+    box: [700, 430, 1220, 490]
+    expected_substring: "Error de red"
