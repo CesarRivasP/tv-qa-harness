@@ -22,13 +22,19 @@ class LogWaitResult:
 
 def wait_for_line(pattern: str, timeout_s: float, serial: str | None = None) -> LogWaitResult:
     regex = re.compile(pattern, re.IGNORECASE)
-    cmd = ["adb"]
+    base = ["adb"]
     if serial:
-        cmd += ["-s", serial]
-    cmd += ["logcat"]
+        base += ["-s", serial]
+
+    # Only match lines produced AFTER this call. Plain `adb logcat` first replays the
+    # entire ring buffer, so a stale backlog line (e.g. a `playerFailed` from an earlier
+    # attempt, or ever-present `ReactNativeJS` spam) matches instantly -> false positive.
+    # Clear the buffer first so the tail reflects only real, post-injection events.
+    # (Buffer clear is the same primitive the suite's manual procedure uses: `logcat -c`.)
+    subprocess.run(base + ["logcat", "-c"], capture_output=True, text=True)
 
     start = time.monotonic()
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    proc = subprocess.Popen(base + ["logcat"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
         for line in proc.stdout:
             if regex.search(line):

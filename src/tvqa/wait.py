@@ -9,7 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from tvqa.adb import Adb
-from tvqa.device import AgentDevice
+from tvqa.device import AgentDevice, AgentDeviceError
 from tvqa.states import StateRegistry
 
 
@@ -43,7 +43,14 @@ def state_check_fn(
 
     def check() -> bool:
         if method == "a11y":
-            return registry.check(name, snapshot_text=device.snapshot()).matched
+            # A transient 0-node a11y frame (app booting, LogBox overlay, player screen)
+            # makes the snapshot helper raise. That is "state not present yet", not a
+            # harness failure — swallow it so poll_until keeps polling instead of crashing.
+            try:
+                snap = device.snapshot()
+            except AgentDeviceError:
+                return False
+            return registry.check(name, snapshot_text=snap).matched
         adb.screenshot(shot_path)
         return registry.check(name, screenshot_path=shot_path).matched
 
