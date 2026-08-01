@@ -46,9 +46,9 @@ states:
   # --- Live TV ---
   live_tv_grid:
     method: a11y
-    # NOTE: text depends on app language/profile. "Live TV" = English, "TV en vivo" = Spanish.
-    # If this fails, switch to OCR on the channel grid region or update to match current language.
-    expected_text: "TV en vivo"
+    # Calibrated 2026-07-31 emulator-5554: the grid header "TV en vivo" is NOT in the
+    # a11y tree; the stable live-only anchor is the country selector "Costa Rica".
+    expected_text: "Costa Rica"
 
   channel_unavailable:
     method: ocr

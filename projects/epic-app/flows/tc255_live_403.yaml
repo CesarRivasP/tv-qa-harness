@@ -2,30 +2,41 @@
 # Goal: live 403 recovers ~5s worst case (was ~15-30s).
 # Harness: mitmproxy token403 mode, mid-playback expiry at 45s.
 # Reference: e2e_test_suite.md §#255
+#
+# Calibrated 2026-07-31 emulator-5554 (build 1.3.34.development):
+#  - Nav to Live TV = open left drawer (DPAD_LEFT), DOWN x4 (Home->My list->Movies
+#    ->Series->Live TV), CENTER; then DOWN into channel list, CENTER to play.
+#  - Oracle is LOGCAT, not a11y: this dev build spams LogBox overlays that cover the
+#    a11y tree, so we assert on native/JS log lines (overlay-immune) instead of states.
+#  - PRECONDITION: app cold-started to Home first (force-stop + launch + dismiss dev
+#    toast); open_app only foregrounds the last screen.
 name: tc255_live_403
-description: "Live channel playback with injected token403; verify onError reaches JS and recovers cleanly."
+description: "Live channel with injected token403; verify onError reaches JS fast and recovers with a fresh token."
 steps:
-  # Pre-flight: ensure clean
-  - open_app: EpicTV
-  - wait_state: home_screen_rail
-    timeout: 20
-  # Navigate to Live TV and start playback
-  - keyevent: DPAD_RIGHT  # TODO(calibrate): reach Live TV
-  - keyevent: DPAD_RIGHT
-  - keyevent: DPAD_CENTER
+  - open_app: EpicTV          # PRECONDITION: force-stop before running so this cold-boots to Home.
+  - sleep: 13                 # absorb cold-boot; a11y "Top 10" anchor is content-rotated, don't gate.
+  - keyevent: DPAD_CENTER     # dismiss the dev-build LogBox toast if present
   - sleep: 2
-  - wait_state: live_tv_grid
-    timeout: 15
-  - keyevent: DPAD_CENTER
-  - sleep: 5
-  # Start mitmproxy with token403 (expires after 45s)
+  # Navigate to Live TV via the left drawer and start a channel.
+  - keyevent: DPAD_LEFT     # open/focus drawer (lands on Home)
+  - keyevent: DPAD_DOWN     # My list
+  - keyevent: DPAD_DOWN     # Movies
+  - keyevent: DPAD_DOWN     # Series
+  - keyevent: DPAD_DOWN     # Live TV
+  - keyevent: DPAD_CENTER   # open Live TV grid
+  - sleep: 3
+  - keyevent: DPAD_DOWN     # into channel list (channel 1)
+  - keyevent: DPAD_CENTER   # play channel
+  - sleep: 8
+  # Inject token403 mid-playback (CDN token expires after 45s -> 403 on segments).
   - proxy: {mode: token403}
-  - sleep: 50       # wait for expiry to inject 403
-  # Stop proxy to allow recovery with fresh token
+  # Oracle 1 (self-validating): if the channel is really playing, expiry produces a 403
+  # that surfaces to JS. If nav missed / nothing is playing, no 403 fires -> this times
+  # out and the flow fails (correctly). Matches native 403 or the JS onError handoff.
+  - wait_log: "Response code: 403|playerFailed|HANDLERELOADVIDEO|bad_http_status"
+    timeout: 90
+  # Clear poison so a fresh token can recover.
   - proxy_stop: {}
-  # Wait for recovery indicator in logcat
-  - wait_log: "playerFailed"
-    timeout: 30
-  # Verify still alive (not stuck on spinner)
-  - wait_state: live_tv_grid
-    timeout: 20
+  # Oracle 2: player recovers (reload issued) rather than stuck spinner.
+  - wait_log: "HANDLERELOADVIDEO|handleReloadVideo"
+    timeout: 40
