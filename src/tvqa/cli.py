@@ -6,6 +6,8 @@ preferred entry point for e2e; these commands are the single-step primitives.
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -17,7 +19,9 @@ from tvqa.states import StateRegistry
 from tvqa.logwait import wait_for_line, LogWaitTimeout
 from tvqa.wait import poll_until, state_check_fn
 from tvqa import hygiene as _hygiene
+from tvqa.proxy import MODES
 from tvqa.runner import run_flow
+import yaml
 
 
 @click.group()
@@ -136,15 +140,85 @@ def _resolve_serial(serial):
 
 
 @main.group()
+def proxy():
+    """Proxy health checks and addon validation."""
+
+
+@proxy.command("check")
+@click.option("--project", "project_dir", type=click.Path(exists=True))
+@click.option("--serial", default=None)
+def proxy_check(project_dir, serial):
+    """Verify mitmproxy installation, addon paths, and device proxy state.
+    Prints JSON with {proxy_installed, addons_found, device_proxy_set, issues}."""
+    issues = []
+    
+    # Check mitmproxy installed
+    proxy_installed = shutil.which("mitmdump") is not None
+    if not proxy_installed:
+        issues.append("mitmdump not found in PATH")
+    
+    # Validate addon paths if project provided
+    addons_found = {}
+    if project_dir:
+        project_yaml = Path(project_dir) / "project.yaml"
+        if project_yaml.exists():
+            cfg = yaml.safe_load(project_yaml.read_text()) or {}
+            addons = cfg.get("proxy", {}).get("addons", {})
+            for alias, path in addons.items():
+                exists = Path(path).exists() if Path(path).is_absolute() else (Path(project_dir) / path).exists()
+                addons_found[alias] = exists
+                if not exists:
+                    issues.append(f"addon {alias!r} not found: {path}")
+        else:
+            issues.append("project.yaml not found")
+    
+    # Check device proxy state
+    resolved = _resolve_serial(serial)
+    http_proxy = subprocess.run(
+        ["adb", "-s", resolved, "shell", "settings", "get", "global", "http_proxy"],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    device_proxy_set = http_proxy not in ("null", "", "0")
+    if device_proxy_set:
+        issues.append(f"device proxy already set: {http_proxy}")
+    
+    result = {
+        "proxy_installed": proxy_installed,
+        "addons_found": addons_found,
+        "device_proxy_set": device_proxy_set,
+        "issues": issues,
+        "clean": len(issues) == 0,
+    }
+    click.echo(json.dumps(result))
+    if issues:
+        raise SystemExit(1)
+
+
+@main.group()
 def hygiene():
     """Device-state hygiene: detect/clear leftover proxy + wm overrides."""
 
 
 @hygiene.command("check")
 @click.option("--serial", default=None)
-def hygiene_check(serial):
-    """Report leftover proxy/wm overrides from a prior run. Prints JSON; exits 1 if dirty."""
+@click.option("--project", "project_dir", type=click.Path(exists=True))
+def hygiene_check(serial, project_dir):
+    """Report leftover proxy/wm overrides from a prior run. Prints JSON; exits 1 if dirty.
+    With --project, also validates addon paths from project.yaml."""
     report = _hygiene.check(_resolve_serial(serial))
+    
+    # Addon validation when project provided
+    if project_dir:
+        project_yaml = Path(project_dir) / "project.yaml"
+        if project_yaml.exists():
+            cfg = yaml.safe_load(project_yaml.read_text()) or {}
+            addons = cfg.get("proxy", {}).get("addons", {})
+            for alias, path in addons.items():
+                full = Path(path) if Path(path).is_absolute() else Path(project_dir) / path
+                if not full.exists():
+                    report.issues.append(f"addon {alias!r} missing: {full}")
+                    report.clean = False
+    
     click.echo(json.dumps({"clean": report.clean, "issues": report.issues}))
     if not report.clean:
         raise SystemExit(1)

@@ -101,7 +101,8 @@ npm install -g agent-device@latest
 
 ```bash
 tvqa --help
-pytest -v                           # 38 tests should pass
+pytest -v                           # 51 tests should pass
+tvqa proxy check --project projects/epic-app  # validate mitmproxy + addon paths
 ```
 
 ---
@@ -175,7 +176,10 @@ expected_resolution: "1920x1080"
 proxy:
   host_ip: "10.0.2.2"    # emulator alias for host
   port: 8080
-  addon: my_stall_test.py
+  # Addon aliases — used by `proxy: {mode: X}` steps
+  addons:
+    epic_stall: "../../epic-app/.../epic_stall_test.py"
+    auth_expired: "../../epic-app/.../auth_expired_user_test.py"
 ```
 
 ### states.yaml
@@ -225,7 +229,9 @@ steps:
 | `wait_state: NAME` + `timeout` | Poll until state matches |
 | `wait_log: PATTERN` + `timeout` | Block until logcat matches |
 | `assert_state: NAME` | Single check; fails flow if not matched |
-| `proxy_start: {addon, env}` | Launch mitmdump + set device proxy |
+| `proxy: {mode, env}` | Launch mitmdump with preset mode + env overrides |
+| `proxy_start: {addon, env}` | Legacy: raw addon path + env dict |
+| `proxy_assert: {timeout}` | Verify mitmproxy running + device proxy set |
 | `proxy_stop: {}` | Kill mitmdump + clear all 3 proxy keys |
 
 ---
@@ -263,13 +269,13 @@ This project follows [Semantic Versioning](https://semver.org/):
 - **MINOR**: new features, new step types, new verification methods
 - **PATCH**: bug fixes, documentation updates
 
-Current version: **0.1.0** (MVP — all core features implemented)
+Current version: **0.2.0** (proxy presets + addon registry + health checks)
 
 ### Git tags
 
 ```bash
-git tag -a v0.1.0 -m "MVP: 5-layer architecture, 14 tasks, 38 tests passing"
-git push origin v0.1.0
+git tag -a v0.2.0 -m "Proxy integration: 6 presets, addon registry, proxy_assert, 51 tests"
+git push origin v0.2.0
 ```
 
 ---
@@ -277,7 +283,7 @@ git push origin v0.1.0
 ## Running Tests
 
 ```bash
-pytest -v                    # all 38 tests
+pytest -v                    # all 51 tests
 pytest tests/test_runner.py -v   # specific module
 pytest -k "proxy or hygiene"     # keyword filter
 ```

@@ -154,17 +154,65 @@ Do **not** hardcode credentials in committed YAML. The committed `login.yaml` us
 
 ---
 
+## Proxy fault-injection steps
+
+Network-fault E2E flows use the `proxy` step (mode presets) instead of the raw
+`proxy_start` / `proxy_stop` steps. The harness resolves the mode name to an
+addon path + env vars via the `project.yaml` registry.
+
+### project.yaml addons registry
+
+```yaml
+proxy:
+  host_ip: "10.0.2.2"
+  port: 8080
+  addons:
+    epic_stall: "../../../epic-app/.../epic_stall_test.py"
+    auth_expired: "../../../epic-app/.../auth_expired_user_test.py"
+    auth_revoke: "../../../epic-app/.../auth_refresh_revoke_test.py"
+```
+
+### Preset modes (zero-config)
+
+```yaml
+# token403 — expires CDN token after 45s
+- proxy: {mode: token403}
+
+# origin403 — poisons playlist origin
+- proxy: {mode: origin403, env: {EPIC_EXPIRE_AFTER_S: "30"}}
+
+# vodswap — degrades one proxy, healthy ones survive
+- proxy: {mode: vodswap, env: {EPIC_TARGET_PROXY: proxy2}}
+
+# blackhole — full outage for 40s
+- proxy: {mode: blackhole}
+
+# auth addons (intercept api.epictv.mx)
+- proxy: {mode: auth_expired}
+- proxy: {mode: auth_revoke}
+```
+
+`env` overrides are merged on top of the preset defaults. `proxy_stop` still
+works to tear down the proxy mid-flow. Legacy `proxy_start` continues to
+function for non-epic-app projects.
+
 ## Example correct session
 
 ```bash
 $ tvqa hygiene check
 {"clean": true, "issues": []}
 
+$ tvqa proxy check --project projects/epic-app
+{"proxy_installed": true, "addons_found": {"epic_stall": true, ...}, "clean": true}
+
 $ tvqa run projects/epic-app/flows/login.yaml --project projects/epic-app
 {"flow": "login", "passed": true, "steps": 18, ...}
 
 $ tvqa run projects/epic-app/flows/network_fault_recovery.yaml --project projects/epic-app
 {"flow": "network_fault_recovery", "passed": true, "steps": 8, ...}
+
+$ tvqa run projects/epic-app/flows/tc268_proxy_swap.yaml --project projects/epic-app
+{"flow": "tc268_proxy_swap", "passed": true, "steps": 14, ...}
 ```
 
 **Total tokens consumed by the agent: ~120 (two round trips).**  

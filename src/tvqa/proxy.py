@@ -10,6 +10,42 @@ import os
 import subprocess
 
 
+# mode presets → (addon_alias, default_env)
+MODES: dict[str, tuple[str, dict[str, str]]] = {
+    "token403": ("epic_stall", {"EPIC_MODE": "token403", "EPIC_EXPIRE_AFTER_S": "45"}),
+    "blackhole": (
+        "epic_stall",
+        {"EPIC_MODE": "blackhole", "EPIC_BLACKHOLE_AFTER_S": "45", "EPIC_BLACKHOLE_DURATION_S": "40"},
+    ),
+    "origin403": ("epic_stall", {"EPIC_MODE": "origin403", "EPIC_EXPIRE_AFTER_S": "30"}),
+    "vodswap": (
+        "epic_stall",
+        {"EPIC_MODE": "vodswap", "EPIC_TARGET_PROXY": "proxy2", "EPIC_TARGET_SPEED_FAIL": "502"},
+    ),
+    "auth_expired": ("auth_expired", {}),
+    "auth_revoke": ("auth_revoke", {}),
+}
+
+
+def resolve_mode(mode: str, addons: dict[str, str], env: dict[str, str] | None = None) -> tuple[str, dict[str, str]]:
+    """Resolve a proxy mode name to an (addon_path, env_dict) pair.
+
+    *mode* must exist in MODES. *addons* is the registry from project.yaml.
+    Optional *env* overrides the preset defaults (e.g. changing EPIC_EXPIRE_AFTER_S).
+    """
+    if mode not in MODES:
+        raise ValueError(f"Unknown proxy mode {mode!r}. Known: {list(MODES)}")
+    alias, defaults = MODES[mode]
+    if alias not in addons:
+        raise ValueError(
+            f"Proxy mode {mode!r} needs addon alias {alias!r}, "
+            f"but it is missing from project.yaml proxy.addons"
+        )
+    addon_path = addons[alias]
+    final_env = {**defaults, **(env or {})}
+    return addon_path, final_env
+
+
 class ProxyHarness:
     def __init__(self, serial: str, host_ip: str, port: int = 8080):
         self.serial = serial

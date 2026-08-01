@@ -104,6 +104,100 @@ def test_run_flow_proxy_steps_start_and_stop(tmp_path):
     assert proxy_cls.return_value.stop.call_count >= 1
 
 
+def test_run_flow_proxy_step_resolves_mode(tmp_path):
+    flow_path = _write_flow(tmp_path, {
+        "name": "fault",
+        "steps": [
+            {"proxy": {"mode": "vodswap", "env": {"EPIC_TARGET_PROXY": "proxy1"}}},
+            {"proxy_stop": {}},
+        ],
+    })
+    with patch("tvqa.runner.Adb"), patch("tvqa.runner.AgentDevice"), \
+         patch("tvqa.runner.ProxyHarness") as proxy_cls:
+        # Provide an addons registry via project.yaml
+        proj = _project(tmp_path)
+        (proj / "project.yaml").write_text(yaml.safe_dump({
+            "proxy": {
+                "addons": {"epic_stall": "stall.py"}
+            }
+        }))
+        result = run_flow(flow_path, project_dir=proj, serial="emulator-5554")
+
+    assert result.passed is True
+    proxy_cls.return_value.start.assert_called_once()
+    call_kwargs = proxy_cls.return_value.start.call_args[1]
+    assert call_kwargs["addon_path"] == "stall.py"
+    assert call_kwargs["env"]["EPIC_MODE"] == "vodswap"
+    assert call_kwargs["env"]["EPIC_TARGET_PROXY"] == "proxy1"
+
+
+def test_run_flow_proxy_step_unknown_mode_fails_fast(tmp_path):
+    flow_path = _write_flow(tmp_path, {
+        "name": "badmode",
+        "steps": [{"proxy": {"mode": "nosuchmode"}}],
+    })
+    with patch("tvqa.runner.Adb"), patch("tvqa.runner.AgentDevice"), \
+         patch("tvqa.runner.ProxyHarness"):
+        result = run_flow(flow_path, project_dir=_project(tmp_path), serial="emulator-5554")
+
+    assert result.passed is False
+    assert result.failed_step == 0
+    assert "Unknown proxy mode" in result.detail
+
+
+def test_run_flow_proxy_step_missing_addon_fails_fast(tmp_path):
+    flow_path = _write_flow(tmp_path, {
+        "name": "nomissing",
+        "steps": [{"proxy": {"mode": "token403"}}],
+    })
+    with patch("tvqa.runner.Adb"), patch("tvqa.runner.AgentDevice"), \
+         patch("tvqa.runner.ProxyHarness"):
+        result = run_flow(flow_path, project_dir=_project(tmp_path), serial="emulator-5554")
+
+    assert result.passed is False
+    assert result.failed_step == 0
+    assert "missing from project.yaml" in result.detail
+
+
+def test_run_flow_proxy_assert_passes_when_proxy_active(tmp_path):
+    flow_path = _write_flow(tmp_path, {
+        "name": "assert",
+        "steps": [
+            {"proxy": {"mode": "token403"}},
+            {"proxy_assert": {"timeout": 1}},
+            {"proxy_stop": {}},
+        ],
+    })
+    with patch("tvqa.runner.Adb") as adb_cls, patch("tvqa.runner.AgentDevice"), \
+         patch("tvqa.runner.ProxyHarness") as proxy_cls:
+        proj = _project(tmp_path)
+        (proj / "project.yaml").write_text(yaml.safe_dump({
+            "proxy": {"addons": {"epic_stall": "stall.py"}}
+        }))
+        proxy_cls.return_value._proc = type("P", (), {"poll": lambda *a, **k: None})()  # running
+        adb_cls.return_value.shell.return_value = "10.0.2.2:8080"
+        result = run_flow(flow_path, project_dir=proj, serial="emulator-5554")
+
+    assert result.passed is True
+
+
+def test_run_flow_proxy_assert_fails_when_proxy_dead(tmp_path):
+    flow_path = _write_flow(tmp_path, {
+        "name": "assertdead",
+        "steps": [
+            {"proxy_assert": {"timeout": 1}},
+        ],
+    })
+    with patch("tvqa.runner.Adb"), patch("tvqa.runner.AgentDevice"), \
+         patch("tvqa.runner.ProxyHarness") as proxy_cls:
+        proxy_cls.return_value._proc = None  # not running
+        result = run_flow(flow_path, project_dir=_project(tmp_path), serial="emulator-5554")
+
+    assert result.passed is False
+    assert result.failed_step == 0
+    assert "mitmproxy not running" in result.detail
+
+
 def test_cli_run_prints_one_json_line(tmp_path):
     from click.testing import CliRunner
     from tvqa.cli import main

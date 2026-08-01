@@ -24,11 +24,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Language-dependent states** — profile `cesar` (EN) vs `familia` (ES); `states.yaml` calibrated for EN
 - **S1, S2, S3, S6, S7, S8, S10 passing** — device-run verified, no manual adb screencap loops
 
+## [0.3.0] - 2026-07-31
+
+### Added
+
+- **Proxy mode presets** (`tvqa/proxy.py` `MODES`) — 6 aliases: `token403`, `blackhole`, `origin403`, `vodswap`, `auth_expired`, `auth_revoke`
+- **Addon registry** (`project.yaml` `proxy.addons`) — aliases → relative paths, resolved by `resolve_mode()`
+- **`proxy` step in runner** (`tvqa/runner.py`) — `proxy: {mode: vodswap, env: {...}}` with env override support
+- **`proxy_assert` step** — fail-fast verification that mitmproxy is running and device proxy is set
+- **`tvqa proxy check` CLI** — validates mitmproxy installation, addon paths, and device proxy state
+- **`tvqa hygiene check --project`** — addon path validation alongside proxy/wm hygiene
+- **13 new tests** — `resolve_mode`, `proxy` step, `proxy_assert`, `proxy check`, `hygiene --project`
+
+### Changed
+
+- **6 per-issue flows updated** (tc255, tc257, tc268, tc269, tc270, tc275) — replaced verbose `proxy_start` + env dicts with compact `proxy: {mode: X}` syntax
+- **AGENTS.md** — new "Proxy fault-injection steps" section with preset examples and project.yaml addons registry
+
 ### Known Issues / TODO
 
 - **VOD playback 403 on emulator** — ExoPlayer `HttpDataSource$InvalidResponseCodeException` prevents S4, S5, S9 from completing; likely proxy/CDN or development-build token issue
 - **`settings_submenu` state** — needs OCR calibration (submenus open as overlays)
-- **Per-issue flows** (tc255–tc275) — require mitmproxy addons (`epic_stall_test.py`, `auth_expired_user_test.py`) not yet wired into `tvqa` project path
 
 ## [0.1.0] - 2026-07-31
 
@@ -58,5 +74,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **5-layer architecture** — interaction, verification, declarative, runner, proxy/hygiene
 - **Evidence to disk** — failure screenshots saved to `artifacts/`; JSON carries only path
 
+[0.3.0]: https://github.com/CesarRivasP/tv-qa-harness/releases/tag/v0.3.0
 [0.2.0]: https://github.com/CesarRivasP/tv-qa-harness/releases/tag/v0.2.0
 [0.1.0]: https://github.com/CesarRivasP/tv-qa-harness/releases/tag/v0.1.0

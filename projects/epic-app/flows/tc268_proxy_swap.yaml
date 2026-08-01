@@ -21,12 +21,11 @@ steps:
   - keyevent: DPAD_CENTER
   - sleep: 5
   # Start proxy degrading the active proxy (vodswap)
-  - proxy_start:
-      addon: epic_stall_test.py
+  - proxy:
+      mode: vodswap
       env:
-        EPIC_MODE: vodswap
         EPIC_TARGET_PROXY: proxy2
-        EPIC_TARGET_SPEED_FAIL: kill   # flow.kill the active proxy's test URL
+        EPIC_TARGET_SPEED_FAIL: kill
   - sleep: 15       # allow swap to trigger via onError or excessive buffering
   # Proxy should swap to a healthy proxy; stop to clean up
   - proxy_stop: {}

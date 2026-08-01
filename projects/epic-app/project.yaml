@@ -6,4 +6,9 @@ expected_resolution: "1920x1080"  # → infra.default_resolution
 proxy:
   host_ip: "10.0.2.2"      # → infra.proxy_host_ip
   port: 8080                 # → infra.proxy_port
-  addon: epic_stall_test.py
+  # Addon aliases → paths relative to this project.yaml.
+  # Used by the `proxy: {mode: X}` step (presets in tvqa/proxy.py).
+  addons:
+    epic_stall: "../../../epic-app/variants/epic-app/docs/version_1_3_21_issues/testing/epic_stall_test.py"
+    auth_expired: "../../../epic-app/variants/epic-app/docs/version_1_3_21_issues/testing/auth_expired_user_test.py"
+    auth_revoke: "../../../epic-app/variants/epic-app/docs/version_1_3_21_issues/testing/auth_refresh_revoke_test.py"

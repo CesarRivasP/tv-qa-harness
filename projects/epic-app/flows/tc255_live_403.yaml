@@ -19,11 +19,7 @@ steps:
   - keyevent: DPAD_CENTER
   - sleep: 5
   # Start mitmproxy with token403 (expires after 45s)
-  - proxy_start:
-      addon: epic_stall_test.py
-      env:
-        EPIC_MODE: token403
-        EPIC_EXPIRE_AFTER_S: 45
+  - proxy: {mode: token403}
   - sleep: 50       # wait for expiry to inject 403
   # Stop proxy to allow recovery with fresh token
   - proxy_stop: {}

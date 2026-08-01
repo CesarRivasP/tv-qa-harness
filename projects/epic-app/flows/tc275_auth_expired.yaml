@@ -9,9 +9,7 @@ name: tc275_auth_expired
 description: "Login with 403 expired_user; verify correct modal and no Sentry event for postLoginAuth."
 steps:
   # Start the auth-specific proxy addon (puntual, intercepts api.epictv.mx)
-  - proxy_start:
-      addon: auth_expired_user_test.py
-      env: {}
+  - proxy: {mode: auth_expired}
   - open_app: EpicTV
   - wait_state: login_form
     timeout: 20

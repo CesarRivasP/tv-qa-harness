@@ -22,11 +22,7 @@ steps:
   - keyevent: DPAD_CENTER
   - sleep: 5
   # Start origin403 to poison the playlist
-  - proxy_start:
-      addon: epic_stall_test.py
-      env:
-        EPIC_MODE: origin403
-        EPIC_EXPIRE_AFTER_S: 30
+  - proxy: {mode: origin403, env: {EPIC_EXPIRE_AFTER_S: "30"}}
   # Wait for breaker to exhaust (retryCount climbs to MAX_RETRIES=8)
   - sleep: 90
   # Verify exhausted state reached (PlayerError / Channel unavailable)

@@ -1,0 +1,101 @@
+# _facts.yml — SINGLE SOURCE OF TRUTH for feature mitmproxy-integration
+# Every datum that appears in >1 doc lives HERE and is copied verbatim into prose.
+# Editing a value here → run `feature-spec sync mitmproxy-integration` to propagate.
+# Auditing → `feature-spec audit mitmproxy-integration` checks docs against this file.
+
+feature: mitmproxy-integration
+title: Mitmproxy Integration
+status: proposed
+owners:
+  technical: tvqa maintainer
+  external: epic-app qa team
+dates:
+  drafted: 2026-07-31
+  revisions:
+    - { tag: v1, date: 2026-07-31, note: initial spec after audit of single-file plan }
+
+# --- domain facts ---
+limits:
+  proxy_assert_timeout_s: 5
+  state_timeout_default_s: 30
+  proxy_port: 8080
+  proxy_host_ip: "10.0.2.2"
+
+scope_items:
+  - runner.py
+  - tvqa/proxy.py
+  - tvqa/hygiene.py
+  - project.yaml schema
+  - flow YAML syntax
+  - AGENTS.md
+
+flow_id_range: "tc255–tc276"
+
+worst_case: {}
+
+# --- contracts ---
+contracts:
+  proxy_check_response:
+    mitmproxy_installed: bool
+    mitmproxy_running: bool
+    device_proxy_set: bool
+    addons_found: "Dict[str, bool]"
+
+# --- env / interface facts ---
+env_vars:
+  - EPIC_MODE
+  - EPIC_EXPIRE_AFTER_S
+  - EPIC_BLACKHOLE_AFTER_S
+  - EPIC_BLACKHOLE_DURATION_S
+  - EPIC_TARGET_PROXY
+  - EPIC_TARGET_SPEED_FAIL
+  - TVQA_USERNAME
+  - TVQA_PASSWORD
+
+modes:
+  token403:
+    addon: epic_stall
+    env:
+      EPIC_MODE: token403
+      EPIC_EXPIRE_AFTER_S: 45
+  blackhole:
+    addon: epic_stall
+    env:
+      EPIC_MODE: blackhole
+      EPIC_BLACKHOLE_AFTER_S: 45
+      EPIC_BLACKHOLE_DURATION_S: 40
+  origin403:
+    addon: epic_stall
+    env:
+      EPIC_MODE: origin403
+      EPIC_EXPIRE_AFTER_S: 30
+  vodswap:
+    addon: epic_stall
+    env:
+      EPIC_MODE: vodswap
+      EPIC_TARGET_PROXY: proxy2
+      EPIC_TARGET_SPEED_FAIL: 502
+  auth_expired:
+    addon: auth_expired
+  auth_revoke:
+    addon: auth_revoke
+
+addon_paths:
+  epic_stall: "variants/epic-app/docs/version_1_3_21_issues/testing/epic_stall_test.py"
+  auth_expired: "variants/epic-app/docs/version_1_3_21_issues/testing/auth_expired_user_test.py"
+  auth_revoke: "variants/epic-app/docs/version_1_3_21_issues/testing/auth_refresh_revoke_test.py"
+
+# --- verification anchors ---
+tests_baseline: "38/38 passing"
+
+acceptance:
+  - An agent can run `tvqa run flows/tc268_proxy_swap.yaml --project projects/epic-app` and get a `passed: true/false` JSON in one round trip.
+  - No manual `mitmdump` invocation is required for any of the 7 per-issue flows.
+  - `tvqa hygiene clean` leaves zero mitmproxy processes and zero proxy keys.
+  - A new mode can be added by adding one entry to `proxy.modes` in `project.yaml` (no tvqa core changes required).
+
+# --- cross-doc registry ---
+docs:
+  - { id: "01", file: 01-master-plan.md, role: master-plan }
+  - { id: "02", file: 02-implementation-and-e2e.md, role: implementation }
+  - { id: "03", file: 03-stakeholder-requirements.md, role: stakeholder }

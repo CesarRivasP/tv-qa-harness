@@ -16,7 +16,7 @@ import yaml
 from tvqa.adb import Adb
 from tvqa.device import AgentDevice
 from tvqa.logwait import wait_for_line, LogWaitTimeout
-from tvqa.proxy import ProxyHarness
+from tvqa.proxy import ProxyHarness, resolve_mode
 from tvqa.states import StateRegistry
 from tvqa.wait import poll_until, state_check_fn
 
@@ -54,6 +54,7 @@ class _Ctx:
             host_ip=proxy_cfg.get("host_ip", "10.0.2.2"),
             port=proxy_cfg.get("port", 8080),
         )
+        self.addons: dict[str, str] = proxy_cfg.get("addons", {})
         self.work_dir = project_dir / "artifacts"
         self.work_dir.mkdir(exist_ok=True)
 
@@ -90,9 +91,25 @@ def _exec_step(step: dict, ctx: _Ctx) -> None:
         check = state_check_fn(ctx.registry, name, adb=ctx.adb, device=ctx.device, work_dir=ctx.work_dir)
         if not check():
             raise StepFailed(f"assert_state {name!r} did not match")
+    elif "proxy" in step:
+        spec = step["proxy"]
+        addon_path, env = resolve_mode(spec["mode"], ctx.addons, spec.get("env"))
+        ctx.proxy.start(addon_path=addon_path, env=env)
     elif "proxy_start" in step:
         spec = step["proxy_start"]
         ctx.proxy.start(addon_path=spec["addon"], env=spec.get("env", {}))
+    elif "proxy_assert" in step:
+        spec = step["proxy_assert"]
+        timeout = float(spec.get("timeout", 5))
+        # Verify mitmproxy process is alive
+        if ctx.proxy._proc is None or ctx.proxy._proc.poll() is not None:
+            raise StepFailed(f"proxy_assert: mitmproxy not running")
+        # Verify device proxy is set
+        result = ctx.adb.shell("settings get global http_proxy")
+        if "null" in result or not result.strip():
+            raise StepFailed(f"proxy_assert: device proxy not set (http_proxy={result.strip()})")
+        # Wait up to timeout for proxy to be fully ready (best-effort)
+        time.sleep(0.5)  # brief settling
     elif "proxy_stop" in step:
         ctx.proxy.stop()
     else:

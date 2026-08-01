@@ -47,12 +47,12 @@ done
 | Issue | File | Harness | Oracle / PASS criteria |
 |-------|------|---------|------------------------|
 | #265 font scaling | `tc265_font_scaling.yaml` | `wm density` | No clipping at 720p; Top 10 badge visible |
-| #255 live 403 | `tc255_live_403.yaml` | `epic_stall_test.py` (token403) | `playerFailed` reaches JS; recovers after proxy stop |
-| #257 CDN 502 de-noise | `tc257_cdn_502.yaml` | `epic_stall_test.py` (origin403) | Manual Sentry check: 0 new `REACT-NATIVE-1YT` for proxy 502 |
-| #268 proxy swap | `tc268_proxy_swap.yaml` | `epic_stall_test.py` (vodswap kill) | No black flash, position preserved, `vod_player` stays |
-| #270 speed-test status gate | `tc270_speed_test.yaml` | `epic_stall_test.py` (vodswap 502) | Healthy proxy wins (`changed:true`); playback continues |
-| #269 self-heal | `tc269_self_heal.yaml` | `epic_stall_test.py` (origin403) | Player **stays** exhausted; no `self-heal` loop in logcat |
-| #275 auth expired | `tc275_auth_expired.yaml` | `auth_expired_user_test.py` | Expired-subscription modal; no Sentry event for `postLoginAuth` |
+| #255 live 403 | `tc255_live_403.yaml` | `proxy: {mode: token403}` | `playerFailed` reaches JS; recovers after proxy stop |
+| #257 CDN 502 de-noise | `tc257_cdn_502.yaml` | `proxy: {mode: origin403, env: {EPIC_EXPIRE_AFTER_S: "10"}}` | Manual Sentry check: 0 new `REACT-NATIVE-1YT` for proxy 502 |
+| #268 proxy swap | `tc268_proxy_swap.yaml` | `proxy: {mode: vodswap, env: {EPIC_TARGET_PROXY: proxy2}}` | No black flash, position preserved, `vod_player` stays |
+| #270 speed-test status gate | `tc270_speed_test.yaml` | `proxy: {mode: vodswap}` | Healthy proxy wins (`changed:true`); playback continues |
+| #269 self-heal | `tc269_self_heal.yaml` | `proxy: {mode: origin403, env: {EPIC_EXPIRE_AFTER_S: "30"}}` | Player **stays** exhausted; no `self-heal` loop in logcat |
+| #275 auth expired | `tc275_auth_expired.yaml` | `proxy: {mode: auth_expired}` | Expired-subscription modal; no Sentry event for `postLoginAuth` |
 
 ## Calibration status
 

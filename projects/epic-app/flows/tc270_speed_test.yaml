@@ -20,12 +20,7 @@ steps:
   - keyevent: DPAD_CENTER
   - sleep: 5
   # Start proxy: target gets 502 on test URL, healthy proxies get synthetic 200
-  - proxy_start:
-      addon: epic_stall_test.py
-      env:
-        EPIC_MODE: vodswap
-        EPIC_TARGET_PROXY: proxy2
-        EPIC_TARGET_SPEED_FAIL: 502
+  - proxy: {mode: vodswap}
   - sleep: 20       # allow buffering/error to trigger swap
   - proxy_stop: {}
   - sleep: 5

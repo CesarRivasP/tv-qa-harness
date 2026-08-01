@@ -1,5 +1,6 @@
 from unittest.mock import patch, MagicMock
-from tvqa.proxy import ProxyHarness
+import pytest
+from tvqa.proxy import ProxyHarness, resolve_mode
 
 
 def test_start_launches_mitmdump_and_sets_device_proxy():
@@ -35,3 +36,28 @@ def test_stop_clears_all_three_proxy_keys_and_kills_process():
             if "settings delete global" in args:
                 deleted_keys.add(args.split()[-1])
         assert deleted_keys == {"http_proxy", "global_http_proxy_host", "global_http_proxy_port"}
+
+
+def test_resolve_mode_returns_preset_env():
+    addons = {"epic_stall": "stall.py"}
+    path, env = resolve_mode("token403", addons)
+    assert path == "stall.py"
+    assert env == {"EPIC_MODE": "token403", "EPIC_EXPIRE_AFTER_S": "45"}
+
+
+def test_resolve_mode_env_override():
+    addons = {"epic_stall": "stall.py"}
+    path, env = resolve_mode("token403", addons, {"EPIC_EXPIRE_AFTER_S": "10"})
+    assert path == "stall.py"
+    assert env["EPIC_EXPIRE_AFTER_S"] == "10"
+    assert env["EPIC_MODE"] == "token403"  # default kept
+
+
+def test_resolve_mode_unknown_mode_raises():
+    with pytest.raises(ValueError, match="Unknown proxy mode"):
+        resolve_mode("nosuchmode", {})
+
+
+def test_resolve_mode_missing_addon_raises():
+    with pytest.raises(ValueError, match="missing from project.yaml"):
+        resolve_mode("token403", {})  # no epic_stall alias
