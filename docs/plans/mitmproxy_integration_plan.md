@@ -193,19 +193,21 @@ The auth addons (`auth_expired`, `auth_revoke`) are specific to the EpicTV QA ba
 
 ## 6. Implementation Checklist
 
-### Phase 1 (this session)
-- [ ] Add `addons` and `modes` dict parsing to `_Ctx.__init__` in `runner.py`
-- [ ] Add `proxy` step handler in `_exec_step` with mode → env resolution from `project.yaml`
-- [ ] Update `projects/epic-app/project.yaml` with `addons` + `modes` sections
-- [ ] Update one flow (e.g., `tc268_proxy_swap.yaml`) to use new syntax
-- [ ] Test: `pytest` still passing (baseline: 38/38 as of this writing)
-- [ ] Update `AGENTS.md` with new `proxy` step examples
+### Phase 1 ✅ COMPLETED (2026-07-31)
+- [x] Add `addons` dict parsing to `_Ctx.__init__` in `runner.py`
+- [x] Add `proxy` step handler in `_exec_step` with mode → env resolution
+- [x] Add mode defaults table `MODES` in `tvqa/proxy.py` with `resolve_mode()`
+- [x] Update `projects/epic-app/project.yaml` with `addons` section
+- [x] Update 6 flows (tc255, tc257, tc268, tc269, tc270, tc275) to new syntax
+- [x] Test: `pytest` 51/51 passing (+13 new tests)
+- [x] Update `AGENTS.md` with new `proxy` step examples
+- [x] Commit `58c386c`, tag `v0.3.0`, GitHub release created
 
-### Phase 2 (next session)
-- [ ] Add `tvqa proxy check` CLI command
-- [ ] Add `proxy_assert` runner step
-- [ ] Add `--project` flag to `tvqa hygiene check` for addon validation
-- [ ] Update `projects/epic-app/README.md` with proxy section
+### Phase 2 ✅ COMPLETED (2026-07-31)
+- [x] Add `tvqa proxy check` CLI command
+- [x] Add `proxy_assert` runner step
+- [x] Add `--project` flag to `tvqa hygiene check` for addon validation
+- [x] Update `projects/epic-app/README.md` with proxy section
 
 ### Phase 3 (when needed)
 - [ ] Add `--proxy-log` flag to `tvqa run`
