@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-07-31
+
+### Added
+
+- **17 EpicTV E2E flows** (`projects/epic-app/flows/`) — 10 smoke (S1–S10) + 7 per-issue (tc255–tc275)
+- **`shell` step in runner** (`tvqa/runner.py`) — sends raw `adb shell input keyevent` batches for D-pad navigation
+- **Env-var expansion in `type` steps** (`tvqa/runner.py`) — `os.path.expandvars()` supports `$TVQA_USERNAME` / `$TVQA_PASSWORD`
+- **`AGENTS.md`** — strict token-budget rules: whitelist/blacklist of commands, PNG read policy, calibration protocol
+- **`.env.example`** — documents required environment variables without committing secrets
+- **`projects/epic-app/README.md`** — coverage matrix, calibration guide, AVD limitations
+
+### Calibrated (device-verified on emulator-5554)
+
+- **Sidebar navigation pattern** — `LEFT×10` → `UP×10` → `DOWN×N` reliably navigates the left vertical nav bar
+- **Auto-login with `Recordarme`** — `open_app` lands directly on `profile_select` or `home_screen_rail`
+- **Virtual D-pad keyboard** — search input uses focus-based letter grid; typed `"rick"` letter-by-letter
+- **Language-dependent states** — profile `cesar` (EN) vs `familia` (ES); `states.yaml` calibrated for EN
+- **S1, S2, S3, S6, S7, S8, S10 passing** — device-run verified, no manual adb screencap loops
+
+### Known Issues / TODO
+
+- **VOD playback 403 on emulator** — ExoPlayer `HttpDataSource$InvalidResponseCodeException` prevents S4, S5, S9 from completing; likely proxy/CDN or development-build token issue
+- **`settings_submenu` state** — needs OCR calibration (submenus open as overlays)
+- **Per-issue flows** (tc255–tc275) — require mitmproxy addons (`epic_stall_test.py`, `auth_expired_user_test.py`) not yet wired into `tvqa` project path
+
 ## [0.1.0] - 2026-07-31
 
 ### Added
@@ -33,4 +58,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **5-layer architecture** — interaction, verification, declarative, runner, proxy/hygiene
 - **Evidence to disk** — failure screenshots saved to `artifacts/`; JSON carries only path
 
-[0.1.0]: https://github.com/<user>/tv-qa-harness/releases/tag/v0.1.0
+[0.2.0]: https://github.com/CesarRivasP/tv-qa-harness/releases/tag/v0.2.0
+[0.1.0]: https://github.com/CesarRivasP/tv-qa-harness/releases/tag/v0.1.0
