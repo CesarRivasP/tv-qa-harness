@@ -240,7 +240,7 @@ def run(flow_file, project_dir, serial):
     """Execute a flow.yaml locally; print ONE JSON summary line. The preferred
     entry point for e2e — one agent round trip per flow, not per step."""
     result = run_flow(Path(flow_file), project_dir=Path(project_dir), serial=serial)
-    click.echo(json.dumps({
+    payload = {
         "flow": result.flow,
         "passed": result.passed,
         "steps": result.steps_total,
@@ -248,6 +248,10 @@ def run(flow_file, project_dir, serial):
         "detail": result.detail,
         "evidence": result.evidence,
         "duration_s": result.duration_s,
-    }))
+    }
+    if result.log_line is not None:
+        payload["log_line"] = result.log_line
+        payload["log_elapsed_s"] = result.log_elapsed_s
+    click.echo(json.dumps(payload))
     if not result.passed:
         raise SystemExit(1)

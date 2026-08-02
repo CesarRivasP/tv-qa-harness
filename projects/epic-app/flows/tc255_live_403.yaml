@@ -13,30 +13,47 @@
 name: tc255_live_403
 description: "Live channel with injected token403; verify onError reaches JS fast and recovers with a fresh token."
 steps:
-  - open_app: EpicTV          # PRECONDITION: force-stop before running so this cold-boots to Home.
-  - sleep: 13                 # absorb cold-boot; a11y "Top 10" anchor is content-rotated, don't gate.
-  - keyevent: DPAD_CENTER     # dismiss the dev-build LogBox toast if present
-  - sleep: 2
-  # Navigate to Live TV via the left drawer and start a channel.
-  - keyevent: DPAD_LEFT     # open/focus drawer (lands on Home)
-  - keyevent: DPAD_DOWN     # My list
-  - keyevent: DPAD_DOWN     # Movies
-  - keyevent: DPAD_DOWN     # Series
-  - keyevent: DPAD_DOWN     # Live TV
+  # Deterministic cold-boot: force-stop, relaunch, gate on Home, dismiss dev toast.
+  - reset:
+      app: EpicTV
+      until_state: home_screen_rail
+      timeout: 30
+      dismiss_toast: true
+  # Navigate to Live TV via the left drawer using state-gated nav.
+  - nav:
+      key: DPAD_LEFT        # open/focus drawer (lands on Home)
+      until_state: home_screen_rail
+      max: 2
+      settle: 1
+  - nav:
+      key: DPAD_DOWN        # My list -> Movies -> Series -> Live TV
+      until_state: live_tv_grid
+      max: 6
+      settle: 1
   - keyevent: DPAD_CENTER   # open Live TV grid
   - sleep: 3
   - keyevent: DPAD_DOWN     # into channel list (channel 1)
   - keyevent: DPAD_CENTER   # play channel
   - sleep: 8
+  # Conditionally dismiss any LogBox toast that appeared during nav.
+  - dismiss:
+      key: DPAD_CENTER
+      indicators: ["overlay", "toast", "warning", "error", "logbox"]
+      settle: 1
   # Inject token403 mid-playback (CDN token expires after 45s -> 403 on segments).
   - proxy: {mode: token403}
   # Oracle 1 (self-validating): if the channel is really playing, expiry produces a 403
   # that surfaces to JS. If nav missed / nothing is playing, no 403 fires -> this times
   # out and the flow fails (correctly). Matches native 403 or the JS onError handoff.
-  - wait_log: "Response code: 403|playerFailed|HANDLERELOADVIDEO|bad_http_status"
-    timeout: 90
+  # min_s=5 catches stale-buffer phantom matches (token403 can't fire before 45s, but
+  # we set a conservative floor to flag any suspiciously fast match).
+  - wait_log:
+      pattern: "Response code: 403|playerFailed|HANDLERELOADVIDEO|bad_http_status"
+      timeout: 90
+      min_s: 5
   # Clear poison so a fresh token can recover.
   - proxy_stop: {}
   # Oracle 2: player recovers (reload issued) rather than stuck spinner.
-  - wait_log: "HANDLERELOADVIDEO|handleReloadVideo"
-    timeout: 40
+  - wait_log:
+      pattern: "HANDLERELOADVIDEO|handleReloadVideo"
+      timeout: 40

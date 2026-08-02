@@ -14,7 +14,7 @@ from pathlib import Path
 import yaml
 
 from tvqa.adb import Adb
-from tvqa.device import AgentDevice
+from tvqa.device import AgentDevice, AgentDeviceError
 from tvqa.logwait import wait_for_line, LogWaitTimeout
 from tvqa.proxy import ProxyHarness, resolve_mode
 from tvqa.states import StateRegistry
@@ -34,6 +34,8 @@ class FlowResult:
     detail: str
     evidence: str | None
     duration_s: float
+    log_line: str | None = None
+    log_elapsed_s: float | None = None
 
 
 class _Ctx:
@@ -57,6 +59,8 @@ class _Ctx:
         self.addons: dict[str, str] = proxy_cfg.get("addons", {})
         self.work_dir = project_dir / "artifacts"
         self.work_dir.mkdir(exist_ok=True)
+        self.last_log_line: str | None = None
+        self.last_log_elapsed_s: float | None = None
 
 
 def _exec_step(step: dict, ctx: _Ctx) -> None:
@@ -81,9 +85,77 @@ def _exec_step(step: dict, ctx: _Ctx) -> None:
         check = state_check_fn(ctx.registry, name, adb=ctx.adb, device=ctx.device, work_dir=ctx.work_dir)
         if not poll_until(check, timeout_s=timeout):
             raise StepFailed(f"state {name!r} not seen within {timeout}s")
-    elif "wait_log" in step:
+    elif "nav" in step:
+        spec = step["nav"]
+        key = spec["key"]
+        until_state = spec.get("until_state")
+        max_retries = int(spec.get("max", 10))
+        settle_s = float(spec.get("settle", 1.0))
+        for attempt in range(max_retries):
+            ctx.adb.keyevent(key)
+            if until_state is None:
+                break
+            time.sleep(settle_s)
+            check = state_check_fn(ctx.registry, until_state, adb=ctx.adb, device=ctx.device, work_dir=ctx.work_dir)
+            if check():
+                break
+        else:
+            if until_state:
+                raise StepFailed(
+                    f"nav: state {until_state!r} not reached after {max_retries} {key} presses"
+                )
+    elif "reset" in step:
+        spec = step["reset"]
+        app = spec.get("app", "EpicTV")
+        until_state = spec.get("until_state")
+        timeout = float(spec.get("timeout", 30))
+        dismiss_toast = spec.get("dismiss_toast", False)
+        dismiss_key = spec.get("dismiss_key", "DPAD_CENTER")
+        ctx.adb.shell(f"am force-stop {app}")
+        ctx.device.open_app(app)
+        if until_state:
+            check = state_check_fn(ctx.registry, until_state, adb=ctx.adb, device=ctx.device, work_dir=ctx.work_dir)
+            if not poll_until(check, timeout_s=timeout):
+                raise StepFailed(f"reset: state {until_state!r} not seen within {timeout}s")
+        if dismiss_toast:
+            try:
+                snap = ctx.device.snapshot()
+                indicators = ("overlay", "toast", "warning", "error", "logbox", "SerializableStateInvariant")
+                if any(ind in snap.lower() for ind in indicators):
+                    ctx.adb.keyevent(dismiss_key)
+                    time.sleep(1)
+            except AgentDeviceError:
+                pass
+    elif "dismiss" in step:
+        spec = step["dismiss"]
+        indicators = spec.get("indicators", ["overlay", "toast", "warning", "error", "logbox"])
+        key = spec.get("key", "DPAD_CENTER")
+        settle_s = float(spec.get("settle", 0.5))
         try:
-            wait_for_line(step["wait_log"], float(step.get("timeout", 30)), serial=ctx.serial)
+            snap = ctx.device.snapshot()
+            snap_lower = snap.lower()
+            found = any(ind.lower() in snap_lower for ind in indicators)
+            if found:
+                ctx.adb.keyevent(key)
+                time.sleep(settle_s)
+        except AgentDeviceError:
+            pass
+    elif "wait_log" in step:
+        raw = step["wait_log"]
+        if isinstance(raw, dict):
+            pattern = raw["pattern"]
+            timeout = float(raw.get("timeout", 30))
+            clear_buffer = raw.get("clear", True)
+            min_s = float(raw.get("min_s", 0.0))
+        else:
+            pattern = raw
+            timeout = float(step.get("timeout", 30))
+            clear_buffer = True
+            min_s = 0.0
+        try:
+            result = wait_for_line(pattern, timeout, serial=ctx.serial, clear_buffer=clear_buffer, min_s=min_s)
+            ctx.last_log_line = result.line
+            ctx.last_log_elapsed_s = result.elapsed_s
         except LogWaitTimeout as e:
             raise StepFailed(str(e))
     elif "assert_state" in step:
@@ -158,4 +230,6 @@ def run_flow(flow_path: Path, project_dir: Path, serial: str | None = None) -> F
         detail=detail,
         evidence=evidence,
         duration_s=round(time.monotonic() - start, 2),
+        log_line=ctx.last_log_line,
+        log_elapsed_s=ctx.last_log_elapsed_s,
     )

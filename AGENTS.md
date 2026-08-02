@@ -196,6 +196,76 @@ proxy:
 works to tear down the proxy mid-flow. Legacy `proxy_start` continues to
 function for non-epic-app projects.
 
+---
+
+## Navigation steps (state-gated, retry-capable)
+
+These steps replace blind `keyevent + sleep` sequences that are brittle on
+development builds with variable cold-boot timing and sparse a11y.
+
+### `nav` — press a key until a target state appears
+
+```yaml
+- nav:
+    key: DPAD_DOWN
+    until_state: live_tv_grid
+    max: 6          # max retries
+    settle: 1       # seconds to wait after each press before checking state
+```
+
+Presses `key`, waits `settle` seconds, checks `until_state`. Repeats up to `max`
+times. Fails fast if the state never appears. If `until_state` is omitted, the
+step is a single unconditional keypress.
+
+### `reset` — deterministic cold-launch
+
+```yaml
+- reset:
+    app: EpicTV
+    until_state: home_screen_rail
+    timeout: 30
+    dismiss_toast: true      # optional: dismiss LogBox/dev overlay if present
+    dismiss_key: DPAD_CENTER
+```
+
+1. `adb am force-stop <app>`
+2. `open_app <app>`
+3. Poll `until_state` up to `timeout`
+4. If `dismiss_toast: true`, check snapshot for overlay indicators and dismiss
+
+This is the preferred entry step for every flow because `open_app` alone only
+foregrounds the last screen, it does not reset state.
+
+### `dismiss` — conditional overlay dismiss
+
+```yaml
+- dismiss:
+    key: DPAD_CENTER
+    indicators: ["overlay", "toast", "warning", "error", "logbox"]
+    settle: 0.5
+```
+
+Checks the current a11y snapshot for any of the `indicators` strings (case-
+insensitive). If found, presses `key` and waits `settle`. If no indicator is
+found, the step is a no-op. This never mis-fires on real content.
+
+### `wait_log` — dict syntax with min_s guard
+
+```yaml
+- wait_log:
+    pattern: "playerFailed"
+    timeout: 90
+    min_s: 5          # fail if match arrives faster than this (catches stale-buffer phantom)
+    clear: true       # default: clear logcat buffer before tailing; set false to keep prior lines
+```
+
+`min_s` treats a match that is "too fast" as suspicious (likely a stale ring-
+buffer line from an earlier attempt). This catches the phantom-pass bug that
+produced false greens before the buffer-clear fix.
+
+The matched line + elapsed time are returned in the flow JSON as `log_line` and
+`log_elapsed_s`, so an agent can sanity-check timing without reading a PNG.
+
 ## Example correct session
 
 ```bash

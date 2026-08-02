@@ -82,9 +82,8 @@ def test_state_wait_prints_json(monkeypatch, tmp_path):
 def test_proxy_check_validates_addons(monkeypatch, tmp_path):
     from tvqa import cli as cli_module
 
-    # Mock mitmdump found
+    monkeypatch.setattr(cli_module, "_resolve_serial", lambda serial: "emulator-5554")
     monkeypatch.setattr(cli_module, "shutil", type("shutil", (), {"which": lambda *a, **k: "/usr/bin/mitmdump"})())
-    # Mock adb proxy query
     class FakeResult:
         stdout = "null"
     monkeypatch.setattr(cli_module, "subprocess", type("subprocess", (), {
@@ -108,6 +107,7 @@ def test_proxy_check_validates_addons(monkeypatch, tmp_path):
 def test_proxy_check_missing_addon_exits_1(monkeypatch, tmp_path):
     from tvqa import cli as cli_module
 
+    monkeypatch.setattr(cli_module, "_resolve_serial", lambda serial: "emulator-5554")
     monkeypatch.setattr(cli_module, "shutil", type("shutil", (), {"which": lambda *a, **k: "/usr/bin/mitmdump"})())
     class FakeResult2:
         stdout = "null"

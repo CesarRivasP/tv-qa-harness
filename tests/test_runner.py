@@ -209,3 +209,151 @@ def test_cli_run_prints_one_json_line(tmp_path):
     payload = json.loads(result.output.strip())
     assert payload["passed"] is True
     assert payload["flow"] == "f"
+
+
+def test_run_flow_nav_reaches_state(tmp_path):
+    flow_path = _write_flow(tmp_path, {
+        "name": "navtest",
+        "steps": [
+            {"nav": {"key": "DPAD_DOWN", "until_state": "home", "max": 3, "settle": 0.1}},
+        ],
+    })
+    with patch("tvqa.runner.Adb") as adb_cls, patch("tvqa.runner.AgentDevice") as dev_cls, \
+         patch("tvqa.runner.ProxyHarness"):
+        # First two snapshots don't match, third does
+        calls = [
+            '@e1 [button] "Back"',
+            '@e2 [button] "Menu"',
+            '@e3 [heading] "Home"',
+        ]
+        dev_cls.return_value.snapshot.side_effect = calls
+        result = run_flow(flow_path, project_dir=_project(tmp_path), serial="emulator-5554")
+
+    assert result.passed is True
+    assert adb_cls.return_value.keyevent.call_count == 3  # 3 retries until match
+
+
+def test_run_flow_nav_fails_when_state_not_reached(tmp_path):
+    flow_path = _write_flow(tmp_path, {
+        "name": "navfail",
+        "steps": [
+            {"nav": {"key": "DPAD_DOWN", "until_state": "home", "max": 2, "settle": 0.1}},
+        ],
+    })
+    with patch("tvqa.runner.Adb") as adb_cls, patch("tvqa.runner.AgentDevice") as dev_cls, \
+         patch("tvqa.runner.ProxyHarness"):
+        dev_cls.return_value.snapshot.return_value = '@e1 [button] "Other"'
+        result = run_flow(flow_path, project_dir=_project(tmp_path), serial="emulator-5554")
+
+    assert result.passed is False
+    assert result.failed_step == 0
+    assert "not reached after 2" in result.detail
+    assert adb_cls.return_value.keyevent.call_count == 2
+
+
+def test_run_flow_reset_reaches_state(tmp_path):
+    flow_path = _write_flow(tmp_path, {
+        "name": "resettest",
+        "steps": [
+            {"reset": {"app": "EpicTV", "until_state": "home", "timeout": 5}},
+        ],
+    })
+    with patch("tvqa.runner.Adb") as adb_cls, patch("tvqa.runner.AgentDevice") as dev_cls, \
+         patch("tvqa.runner.ProxyHarness"):
+        dev_cls.return_value.snapshot.return_value = '@e1 [heading] "Home"'
+        result = run_flow(flow_path, project_dir=_project(tmp_path), serial="emulator-5554")
+
+    assert result.passed is True
+    adb_cls.return_value.shell.assert_called_once_with("am force-stop EpicTV")
+    adb_cls.return_value.keyevent.assert_not_called()  # no dismiss because no overlay
+
+
+def test_run_flow_reset_with_dismiss(tmp_path):
+    flow_path = _write_flow(tmp_path, {
+        "name": "resetdismiss",
+        "steps": [
+            {"reset": {"app": "EpicTV", "until_state": "home", "timeout": 5, "dismiss_toast": True}},
+        ],
+    })
+    with patch("tvqa.runner.Adb") as adb_cls, patch("tvqa.runner.AgentDevice") as dev_cls, \
+         patch("tvqa.runner.ProxyHarness"):
+        # First snapshots for poll_until (need "Home" to pass), then overlay for dismiss
+        dev_cls.return_value.snapshot.side_effect = [
+            '@e1 [heading] "Home"',      # poll_until match
+            'React Native warning overlay detected',  # dismiss check
+        ]
+        result = run_flow(flow_path, project_dir=_project(tmp_path), serial="emulator-5554")
+
+    assert result.passed is True
+    adb_cls.return_value.keyevent.assert_called_once_with("DPAD_CENTER")
+
+
+def test_run_flow_dismiss_only_when_overlay_present(tmp_path):
+    flow_path = _write_flow(tmp_path, {
+        "name": "dismiss",
+        "steps": [
+            {"dismiss": {"key": "DPAD_CENTER", "indicators": ["overlay"], "settle": 0.1}},
+        ],
+    })
+    with patch("tvqa.runner.Adb") as adb_cls, patch("tvqa.runner.AgentDevice") as dev_cls, \
+         patch("tvqa.runner.ProxyHarness"):
+        dev_cls.return_value.snapshot.return_value = 'Some overlay warning here'
+        result = run_flow(flow_path, project_dir=_project(tmp_path), serial="emulator-5554")
+
+    assert result.passed is True
+    adb_cls.return_value.keyevent.assert_called_once_with("DPAD_CENTER")
+
+
+def test_run_flow_dismiss_skips_when_no_overlay(tmp_path):
+    flow_path = _write_flow(tmp_path, {
+        "name": "nodismiss",
+        "steps": [
+            {"dismiss": {"key": "DPAD_CENTER"}},
+        ],
+    })
+    with patch("tvqa.runner.Adb") as adb_cls, patch("tvqa.runner.AgentDevice") as dev_cls, \
+         patch("tvqa.runner.ProxyHarness"):
+        dev_cls.return_value.snapshot.return_value = '@e1 [heading] "Home"'
+        result = run_flow(flow_path, project_dir=_project(tmp_path), serial="emulator-5554")
+
+    assert result.passed is True
+    adb_cls.return_value.keyevent.assert_not_called()
+
+
+def test_run_flow_wait_log_dict_syntax_returns_match(tmp_path):
+    flow_path = _write_flow(tmp_path, {
+        "name": "logdict",
+        "steps": [
+            {"wait_log": {"pattern": "hello", "timeout": 5}},
+        ],
+    })
+    with patch("tvqa.runner.Adb"), patch("tvqa.runner.AgentDevice"), \
+         patch("tvqa.runner.ProxyHarness"), \
+         patch("tvqa.runner.wait_for_line") as wait_mock:
+        from tvqa.logwait import LogWaitResult
+        wait_mock.return_value = LogWaitResult(matched=True, line="hello world", elapsed_s=2.5)
+        result = run_flow(flow_path, project_dir=_project(tmp_path), serial="emulator-5554")
+
+    assert result.passed is True
+    assert result.log_line == "hello world"
+    assert result.log_elapsed_s == 2.5
+    wait_mock.assert_called_once_with("hello", 5, serial="emulator-5554", clear_buffer=True, min_s=0.0)
+
+
+def test_run_flow_wait_log_min_s_catches_too_fast(tmp_path):
+    flow_path = _write_flow(tmp_path, {
+        "name": "logmins",
+        "steps": [
+            {"wait_log": {"pattern": "hello", "timeout": 5, "min_s": 2.0}},
+        ],
+    })
+    with patch("tvqa.runner.Adb"), patch("tvqa.runner.AgentDevice"), \
+         patch("tvqa.runner.ProxyHarness"), \
+         patch("tvqa.runner.wait_for_line") as wait_mock:
+        from tvqa.logwait import LogWaitTimeout
+        wait_mock.side_effect = LogWaitTimeout("matched too fast (0.1s < 2.0s min)")
+        result = run_flow(flow_path, project_dir=_project(tmp_path), serial="emulator-5554")
+
+    assert result.passed is False
+    assert "too fast" in result.detail
+    wait_mock.assert_called_once_with("hello", 5, serial="emulator-5554", clear_buffer=True, min_s=2.0)

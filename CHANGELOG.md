@@ -24,6 +24,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Language-dependent states** — profile `cesar` (EN) vs `familia` (ES); `states.yaml` calibrated for EN
 - **S1, S2, S3, S6, S7, S8, S10 passing** — device-run verified, no manual adb screencap loops
 
+## [0.3.1] - 2026-08-02
+
+### Added
+
+- **`nav` step** — state-gated navigation: presses a key and polls until target state
+  appears, retrying up to `max` times with `settle` seconds between checks
+- **`reset` step** — deterministic cold-launch: `force-stop` → `open_app` → poll until
+  state → optionally dismiss dev toasts/LogBox overlays
+- **`dismiss` step** — conditional overlay dismiss: checks a11y snapshot for indicator
+  strings, only presses key if an overlay is actually present (never mis-fires)
+- **`wait_log` dict syntax** — supports `pattern`, `timeout`, `min_s` (catches stale-buffer
+  phantom passes), and `clear` (opt-out of `logcat -c`)
+- **`FlowResult` extended** — now carries `log_line` and `log_elapsed_s` when a `wait_log`
+  step matches, surfaced in `tvqa run` JSON output for agent sanity-checking
+- **`logwait.py` hardened** — `clear_buffer` param (default true) + `min_s` guard; a match
+  that arrives faster than the threshold is treated as suspicious and raises timeout
+- **8 new tests** — `nav` pass/fail, `reset` pass/dismiss, `dismiss` present/absent,
+  `wait_log` dict syntax + `min_s` catch
+
+### Changed
+
+- **`tc255_live_403.yaml`** — migrated from blind `keyevent + sleep` navigation to
+  `reset` + `nav` + `dismiss` state-gated steps; `wait_log` now uses dict syntax with
+  `min_s: 5` to catch phantom passes
+- **`login_remembered.yaml`** — uses `reset` with `dismiss_toast: true` for deterministic
+  cold-boot to login form
+- **`AGENTS.md`** — new "Navigation steps" section documenting `nav`, `reset`, `dismiss`,
+  and `wait_log` dict syntax
+
 ## [0.3.0] - 2026-07-31
 
 ### Added

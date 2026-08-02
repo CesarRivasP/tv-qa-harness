@@ -3,9 +3,12 @@ name: login_remembered
 # so we must NOT type (that doubles user/pass -> 401 authentication_failed).
 # Cold-launch renders single stored creds with login_button focused; just submit.
 steps:
-  - open_app: EpicTV
-  - wait_state: login_form
-    timeout: 20
+  # Deterministic cold-boot to login form (force-stop + relaunch + gate + dismiss toast).
+  - reset:
+      app: EpicTV
+      until_state: login_form
+      timeout: 30
+      dismiss_toast: true
   # login_button is focused on the fresh form; submit the prefilled creds.
   - keyevent: DPAD_CENTER
   - wait_state: profile_select
