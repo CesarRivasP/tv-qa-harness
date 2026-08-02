@@ -1,5 +1,6 @@
-"""Generalized preflight/cleanup: checks for leftover proxy settings and
-wm size/density overrides from a prior test run. Mirrors the project-local
+"""Generalized preflight/cleanup: checks for leftover proxy settings,
+active Private DNS (DoT breaks name resolution on the AVD), and wm
+size/density overrides from a prior test run. Mirrors the project-local
 scripts/qa/preflight.sh and cleanup.sh pattern, minus the per-project bits.
 """
 from __future__ import annotations
@@ -32,6 +33,15 @@ def check(serial: str) -> HygieneReport:
     if http_proxy != "null" or host != "null" or (port != "null" and port != "0"):
         issues.append(f"proxy configured: http_proxy={http_proxy} host={host} port={port}")
 
+    # Private DNS (DNS-over-TLS): on this AVD the QEMU resolver only serves
+    # plaintext DNS on :53, so opportunistic DoT (:853) fails the handshake and
+    # doesn't fall back cleanly -> `resolv: Validation failed` -> name resolution
+    # dies -> the app can't reach its backend. `null` is the opportunistic
+    # default and is NOT safe; the mode must be exactly "off".
+    private_dns = _adb_get(serial, "private_dns_mode")
+    if private_dns != "off":
+        issues.append(f"private DNS active: private_dns_mode={private_dns} (must be 'off')")
+
     density = subprocess.run(
         ["adb", "-s", serial, "shell", "wm", "density"], capture_output=True, text=True
     ).stdout
@@ -50,6 +60,8 @@ def check(serial: str) -> HygieneReport:
 def clean(serial: str) -> HygieneReport:
     for key in ("http_proxy", "global_http_proxy_host", "global_http_proxy_port"):
         subprocess.run(["adb", "-s", serial, "shell", "settings", "delete", "global", key], capture_output=True)
+    # Force Private DNS off (DoT breaks name resolution on the AVD).
+    subprocess.run(["adb", "-s", serial, "shell", "settings", "put", "global", "private_dns_mode", "off"], capture_output=True)
     subprocess.run(["adb", "-s", serial, "shell", "wm", "density", "reset"], capture_output=True)
     subprocess.run(["adb", "-s", serial, "shell", "wm", "size", "reset"], capture_output=True)
     return check(serial)
