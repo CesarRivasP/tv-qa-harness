@@ -161,22 +161,37 @@ Observed constraints on this build:
 - `122c5a2` — `projects/epic-app/states.yaml` (`live_tv_grid` anchor), `flows/tc255_live_403.yaml`
   (calibrated nav + logcat oracle), `flows/login_remembered.yaml` (new).
 
-**Not done (deliberately stopped):** validating any flow to a trustworthy green — blocked on
-the navigation redesign in §4. Every pre-`d87c4ad` tvqa "green" should be considered invalid.
+## 7. What the *tool developer* session changed (v0.3.1)
+
+- `89ec6f1` — `src/tvqa/runner.py`: `nav`, `reset`, `dismiss` steps; `wait_log` dict syntax
+  with `min_s` and `clear`; `FlowResult` extended with `log_line`/`log_elapsed_s`.
+- `89ec6f1` — `src/tvqa/logwait.py`: `clear_buffer` param + `min_s` guard.
+- `89ec6f1` — `src/tvqa/cli.py`: `tvqa run` JSON includes `log_line`/`log_elapsed_s`.
+- `89ec6f1` — `flows/tc255_live_403.yaml`: uses `reset`, `nav`, `dismiss`, `wait_log` dict.
+- `89ec6f1` — `flows/login_remembered.yaml`: uses `reset` with `dismiss_toast`.
+- `89ec6f1` — `AGENTS.md`: Navigation steps documentation.
+- Full suite 60 pass.
+
+**Status:** §4.1 (nav), §4.2 (reset), §4.3 (dismiss), §4.6 (wait_log min_s), §1 (clear opt-out)
+are now implemented. §4.4 (playback-reached assertion), §4.5 (addon traffic verification), and
+§4.6 (teardown guarantee) remain for future work.
+
+**Still blocked:** validating any flow to a trustworthy green — VOD nav calibration
+(tc257/268/269/270 are stubs) and auth addon availability (tc275) are pending.
+Every pre-`d87c4ad` tvqa "green" should be considered invalid.
 (The `epic-app/docs/e2e_test_suite.md` "last run ✅" entries are unaffected — those were manual
 `adb` + mitmproxy runs, not tvqa flows.)
 
-## 7. Fast repro for the tool dev
+## 8. Fast repro for the tool dev
 
 ```bash
 export TVQA_USERNAME=cesarrivas TVQA_PASSWORD=12345
-cd tv-qa-harness
+cd tvqa-harness
 tvqa hygiene check                                   # expect clean
-adb shell am force-stop com.epictv                   # deterministic reset
-# then in the app: it cold-boots to Home; dismiss the dev toast (DPAD_CENTER)
 tvqa run projects/epic-app/flows/tc255_live_403.yaml --project projects/epic-app
-# Observe: nav may or may not reach the live player (that's the §4 problem).
-# The oracle itself is now honest — a pass means a real post-injection 403.
+# Observe: nav uses state-gated retries; reset handles cold-boot + toast dismiss.
+# The oracle is honest (buffer cleared) and self-validating (min_s guard).
+# A pass means a real post-injection 403 was observed in logcat.
 ```
 
 Related agent memory: `feedback_tvqa_harness_gotchas`. Suite of intent per test case:
