@@ -1,6 +1,6 @@
 [project]
 name = "tvqa"
-version = "0.3.2"
+version = "0.3.3"
 description = "Text-first QA harness for driving RN TV apps without burning vision tokens on screenshots"
 requires-python = ">=3.11"
 dependencies = [

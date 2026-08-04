@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] - 2026-08-04
+
+### Added
+
+- **`resolve_serial()` / `lan_ip()`** (`tvqa/adb.py`) — autodetect the adb
+  serial (sole attached device wins) and this machine's live LAN IP instead
+  of hardcoding them in `project.yaml`. Switching between emulator and
+  physical device needs zero file edits now; `serial_hint` is only consulted
+  when 0 or 2+ devices are attached (ambiguous).
+- **agent-device targeting by NAME+session** (`tvqa/device.py`, `runner.py`)
+  — avoids the stale default-session binding that silently drove the wrong
+  device. `TVQA_DEVICE_NAME` / `TVQA_DEVICE_SESSION` env vars let you pin a
+  physical target without touching `project.yaml`.
+- **`assert_no_log` step** — inverse of `wait_log`: passes only if a
+  forbidden pattern never appears within the window. No-loop regression
+  oracle for EpicTV #269 (self-heal must not fire repeatedly post-exhaustion).
+- **`dismiss_rn_overlay` step** — closes the RN dev LogBox overlay, which
+  doesn't reliably close on `DPAD_CENTER` and blocks a11y interaction.
+- **17 new/recalibrated EpicTV flows** against a physical Chromecast (device
+  runs 2026-08-02/03): sidebar navigation via label-press instead of blind
+  D-pad counting (flaky on cold boot), `wait_log`/`assert_no_log` oracles
+  replacing blind `sleep`, and a documented first-`<Video>`-mount warmup bug
+  worked around with a throwaway priming play.
+
+### Fixed
+
+- **`reset` step force-stop** — `am force-stop` needs the app PACKAGE, not
+  the display NAME; passing the name silently no-op'd (no real cold boot).
+- **`project.yaml` no longer hardcodes a device-specific serial/IP** — the
+  physical-device values from calibration sessions were leaking into the
+  committed default, which would have broken emulator/CI runs. Replaced with
+  autodetection (see Added).
+
 ## [0.3.2] - 2026-08-04
 
 ### Added
