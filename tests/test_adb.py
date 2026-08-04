@@ -37,3 +37,21 @@ def test_screenshot_writes_png(tmp_path):
         out = tmp_path / "shot.png"
         adb.screenshot(out)
         assert out.read_bytes() == png_bytes
+
+
+def test_wifi_disable_sends_svc_command():
+    with patch("subprocess.run") as run:
+        run.return_value = MagicMock(stdout="", returncode=0)
+        adb = Adb(serial="26251HFDD6RBL8")  # physical device, USB transport
+        adb.wifi_disable()
+        args = run.call_args[0][0]
+        assert args == ["adb", "-s", "26251HFDD6RBL8", "shell", "svc", "wifi", "disable"]
+
+
+def test_wifi_enable_sends_svc_command():
+    with patch("subprocess.run") as run:
+        run.return_value = MagicMock(stdout="", returncode=0)
+        adb = Adb(serial="26251HFDD6RBL8")
+        adb.wifi_enable()
+        args = run.call_args[0][0]
+        assert args == ["adb", "-s", "26251HFDD6RBL8", "shell", "svc", "wifi", "enable"]

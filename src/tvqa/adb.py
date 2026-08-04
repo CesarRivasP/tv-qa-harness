@@ -49,3 +49,15 @@ class Adb:
 
     def logcat_clear(self) -> None:
         self._run(self._base() + ["logcat", "-c"])
+
+    def wifi_enable(self) -> None:
+        self._run(self._base() + ["shell", "svc", "wifi", "enable"])
+
+    def wifi_disable(self) -> None:
+        """On a physical device controlled over wireless adb, this kills the
+        transport it runs over (wifi IS the control channel) — the command
+        itself succeeds but every subsequent adb call to this serial hangs.
+        Requires USB transport (separate "USB debugging" toggle, not "Wireless
+        debugging") for physical devices. Emulators are unaffected.
+        """
+        self._run(self._base() + ["shell", "svc", "wifi", "disable"])
