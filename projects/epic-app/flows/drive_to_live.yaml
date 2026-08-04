@@ -1,0 +1,54 @@
+# drive_to_live — deterministic path to a PLAYING live channel, stop at playback.
+# No fault injection. Setup half of the POSITIVE #269 self-heal test (EXHAUSTED
+# branch): after this passes, the agent cues a human WiFi OFF (held long enough to
+# exhaust the breaker) then WiFi ON, and waits for
+# 'self-heal on network return (exhausted)'. Oracle is 100% logcat (NO OCR).
+name: drive_to_live
+description: "Cold-boot, login, open Live TV, play a channel, reach playback (ONLOAD). Stops there."
+steps:
+  # Auto-login via Recordarme → lands directly on Home. Device prep is one-time
+  # preflight (appops REQUEST_INSTALL_PACKAGES allow + screensaver off).
+  - reset:
+      app: EpicTV
+      package: com.epictv
+      until_state: home_screen_rail
+      timeout: 60
+      dismiss_toast: true
+  # Sidebar → Live TV (label-press; blind D-pad flakes on cold boot).
+  - keyevent: DPAD_LEFT       # open sidebar
+  - sleep: 3    # sidebar expand animation timing is variable on physical device;
+                # `press` taps by ABSOLUTE coords, so a too-early tap lands on the
+                # wrong (collapsed-position) item. Verified live 2026-08-03.
+  - press: 'label="Live TV"'
+  - wait_state: live_tv_grid
+    timeout: 20
+  - sleep: 1.5
+  # PRIMING PLAY (throwaway): the FIRST <Video> mount after cold-boot on this
+  # device silently never fires onLoad (black screen, no onLoad/onError, forever
+  # — confirmed live 2026-08-03, 4/4 repro). The SECOND mount in the same
+  # session always works (~2.5s to ONLOAD, 2/2 repro). Root cause looks like a
+  # first-mount surface/decoder warmup bug in the app itself, unrelated to
+  # #269 — out of scope here, so we just eat one throwaway play+back instead of
+  # chasing it. Play a NAMED channel, not the first grid item: the first entries
+  # in this grid are the user's home security cameras ("1. ACCESO TOTAL 24/7",
+  # "BAÑO", "SALA", "COCINA"...) which are unreliable anyway.
+  - press: 'label="AMC"'
+  - sleep: 5
+  - keyevent: KEYCODE_BACK
+  - sleep: 2
+  # The priming play often leaves an RN dev LogBox overlay behind (state-update-
+  # after-unmount warning from the throwaway mount) that blocks a11y interaction
+  # and doesn't reliably close on DPAD_CENTER. Confirmed live 2026-08-03.
+  - dismiss_rn_overlay: {}
+  # Real play: second mount, reliably reaches ONLOAD.
+  - press: 'label="AMC"'
+  - sleep: 3
+  - dismiss:
+      key: DPAD_CENTER
+      indicators: ["overlay", "toast", "warning", "error", "logbox"]
+      settle: 1
+  # Playback-reached gate (NO OCR).
+  - wait_log:
+      pattern: "ONLOAD|ONREADYFORDISPLAY"
+      timeout: 40
+      min_s: 2

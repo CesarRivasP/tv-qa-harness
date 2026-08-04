@@ -1,24 +1,51 @@
-# #257 — CDN 502 de-noise (Sentry)
-# Goal: proxy-host 502 does NOT reach Sentry; 502 from different host DOES;
-# non-502 from proxy host DOES.
-# Note: this is primarily unit-tested, but we include a device smoke to verify
-# the filter is active in the running build.
+# #257 — CDN proxy error graceful handling (device smoke)
+# Goal: proxy errors do NOT crash the app; player surfaces a graceful network error.
+# Note: the Sentry 502 de-noise filter is unit-tested (see e2e_test_suite.md).
+# This flow is a device smoke that verifies the running build handles proxy
+# failures end-to-end. We use origin403 as the available proxy fault mode;
+# the app should treat it as a fatal network error and land on
+# "Channel unavailable" rather than ANR/crash.
 # Reference: e2e_test_suite.md §#257
 name: tc257_cdn_502
-description: "Verify proxy 502s are silenced in Sentry (negative check: no new event for proxy 502)."
+description: "Live TV with origin403 proxy error; verify graceful network error (no crash)."
 steps:
-  # Start proxy in origin403 mode to trigger proxy errors
+  # Preconditions (performed by human before run):
+  #   - App is foregrounded on home_screen_rail (already logged-in & profile selected).
+  #   - No overlay/modal is present.
+  - wait_state:
+      state: home_screen_rail
+      timeout: 10
+  # Navigate via sidebar: DPAD_LEFT to focus sidebar, then DOWN to Live TV.
+  - keyevent: DPAD_LEFT
+  - sleep: 1
+  - keyevent: DPAD_DOWN   # My list
+  - sleep: 0.5
+  - keyevent: DPAD_DOWN   # Movies
+  - sleep: 0.5
+  - keyevent: DPAD_DOWN   # Series
+  - sleep: 0.5
+  - keyevent: DPAD_DOWN   # Live TV
+  - sleep: 0.5
+  - keyevent: DPAD_CENTER # enter Live TV
+  - wait_state: live_tv_grid
+    timeout: 15
+  - keyevent: DPAD_DOWN    # into channel list
+  - keyevent: DPAD_CENTER  # play channel
+  - sleep: 8
+  - dismiss:
+      key: DPAD_CENTER
+      indicators: ["overlay", "toast", "warning", "error", "logbox"]
+      settle: 1
+  # Inject origin403 mid-playback (origin poisoned after 10s → 403 on playlist/segments).
   - proxy: {mode: origin403, env: {EPIC_EXPIRE_AFTER_S: "10"}}
-  - open_app: EpicTV
-  - wait_state: home_screen_rail
-    timeout: 20
-  # Navigate to Live TV to trigger proxy segments
-  - keyevent: DPAD_RIGHT  # TODO(calibrate)
-  - keyevent: DPAD_RIGHT
-  - keyevent: DPAD_CENTER
-  - sleep: 5
+  # Oracle 1: wait for the error to surface to JS/native logs.
+  # min_s=5 catches stale-buffer phantom matches.
+  - wait_log:
+      pattern: "playerFailed|Response code: 403|bad_http_status|network_error"
+      timeout: 60
+      min_s: 5
   - proxy_stop: {}
-  # ASSERTION: no REACT-NATIVE-1YT event should appear in Sentry for proxy 502.
-  # This is a manual/oracle step: the test engineer inspects Sentry dashboard
-  # for the QA session. tvqa cannot read Sentry directly.
-  - shell: "echo 'MANUAL: verify no new REACT-NATIVE-1YT in Sentry for proxy 502'"
+  # Oracle 2: verify the player lands on a graceful error state (not crash/ANR).
+  - wait_state: channel_unavailable
+    timeout: 60
+  - assert_state: channel_unavailable

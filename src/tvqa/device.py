@@ -13,11 +13,26 @@ class AgentDeviceError(RuntimeError):
 
 
 class AgentDevice:
-    def __init__(self, platform: str = "android"):
+    def __init__(self, platform: str = "android", device: str | None = None,
+                 session: str | None = None):
         self.platform = platform
+        # device: agent-device target name-or-udid (e.g. a physical serial). When
+        # None, agent-device auto-picks / follows the bound session — fine for a
+        # single emulator, but a physical device MUST be named or agent-device
+        # falls back to the stale default-session binding (usually emulator-5554).
+        self.device = device
+        # session: agent-device sessions are cwd-keyed and the "default" one is
+        # often pre-bound to an emulator. A dedicated named session bound to our
+        # --device sidesteps that collision across runs and working directories.
+        self.session = session
 
     def _run(self, args: list[str]) -> str:
-        result = subprocess.run(["agent-device", *args], capture_output=True, text=True)
+        cmd = ["agent-device", *args]
+        if self.session:
+            cmd += ["--session", self.session]
+        if self.device:
+            cmd += ["--device", self.device]
+        result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             raise AgentDeviceError(f"agent-device {' '.join(args)} failed: {result.stderr!r}")
         return result.stdout
@@ -43,3 +58,11 @@ class AgentDevice:
 
     def close(self) -> None:
         self._run(["close"])
+
+    def dismiss_rn_overlay(self) -> str:
+        """Dismiss a React Native dev warning/error (LogBox) overlay if present.
+        No-op-safe: agent-device verifies it's gone, doesn't error if there was
+        none to begin with. More reliable than guessing a keyevent for LogBox,
+        which doesn't always close on DPAD_CENTER.
+        """
+        return self._run(["react-native", "dismiss-overlay"])

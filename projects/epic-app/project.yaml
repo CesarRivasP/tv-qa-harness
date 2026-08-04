@@ -1,10 +1,22 @@
 # Values sourced from _facts.yml (dogfood / infra namespaces).
 package: com.epictv           # → dogfood.package
 app_name: EpicTV             # → dogfood.app_name
-serial_hint: emulator-5554   # → infra.default_serial
+# serial_hint / proxy.host_ip / agent_device_* are intentionally UNSET here.
+# runner.py autodetects all three from whatever single adb device is attached
+# (emulator or physical) — see tvqa.adb.resolve_serial / lan_ip. Switching
+# devices needs zero edits to this file. Only set serial_hint below if 2+
+# devices are ever attached at once (ambiguous autodetect falls back to it).
+# serial_hint: emulator-5554
+# agent-device selects by friendly NAME (from `agent-device devices`), NOT the
+# adb serial/udid — only needed if agent-device itself has 2+ registered
+# devices. Prefer TVQA_DEVICE_NAME / TVQA_DEVICE_SESSION env vars over setting
+# these here, so a physical-device run doesn't require touching this file.
+# agent_device_name: Chromecast
 expected_resolution: "1920x1080"  # → infra.default_resolution
 proxy:
-  host_ip: "10.0.2.2"      # → infra.proxy_host_ip
+  # host_ip: autodetected (10.0.2.2 for emulator-*, else this machine's live
+  # LAN IP). Set explicitly only if autodetect picks the wrong interface
+  # (e.g. VPN active).
   port: 8080                 # → infra.proxy_port
   # Addon aliases → paths relative to this project.yaml.
   # Used by the `proxy: {mode: X}` step (presets in tvqa/proxy.py).

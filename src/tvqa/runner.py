@@ -13,7 +13,7 @@ from pathlib import Path
 
 import yaml
 
-from tvqa.adb import Adb
+from tvqa.adb import Adb, resolve_serial, lan_ip
 from tvqa.device import AgentDevice, AgentDeviceError
 from tvqa.logwait import wait_for_line, LogWaitTimeout
 from tvqa.proxy import ProxyHarness, resolve_mode
@@ -41,7 +41,6 @@ class FlowResult:
 class _Ctx:
     def __init__(self, project_dir: Path, serial: str | None):
         self.project_dir = project_dir
-        self.serial = serial
         self.registry = StateRegistry.load(project_dir / "states.yaml")
         # project.yaml is optional; when present it supplies proxy host/port and a
         # serial hint so those aren't hardcoded here.
@@ -49,11 +48,35 @@ class _Ctx:
         cfg = yaml.safe_load(project_yaml.read_text()) if project_yaml.exists() else {}
         cfg = cfg or {}
         proxy_cfg = cfg.get("proxy", {})
-        self.adb = Adb(serial=serial)
-        self.device = AgentDevice(platform="android")
+        # Autodetect over hardcoding: whichever single device is attached wins,
+        # so switching between emulator and physical needs zero project.yaml
+        # edits. serial_hint is only a last resort when 0 or 2+ are attached.
+        resolved_serial = resolve_serial(serial, cfg.get("serial_hint", "emulator-5554"))
+        self.serial = resolved_serial
+        self.adb = Adb(serial=resolved_serial)
+        # Target agent-device at the same physical device adb/proxy use. Without an
+        # explicit --device, agent-device follows its stale default-session binding
+        # (typically emulator-5554) and every a11y snapshot/open hits the wrong device.
+        # agent-device selects by friendly NAME, not the adb serial — separate key,
+        # only needed when 2+ devices are registered with agent-device; None is
+        # fine (auto-picks) for the common single-target case. Env var lets you
+        # pin a name for a physical run without touching project.yaml.
+        self.device = AgentDevice(
+            platform="android",
+            device=cfg.get("agent_device_name") or os.environ.get("TVQA_DEVICE_NAME"),
+            session=cfg.get("agent_device_session") or os.environ.get("TVQA_DEVICE_SESSION", "tvqa"),
+        )
+        # host_ip: explicit project.yaml value wins; otherwise derive from the
+        # resolved serial. "10.0.2.2" only resolves inside the emulator's QEMU
+        # NAT — a physical device needs this machine's real LAN IP instead,
+        # which changes across networks/DHCP, so we read it live rather than
+        # hardcode a snapshot that goes stale the next time you switch WiFi.
+        host_ip = proxy_cfg.get("host_ip") or (
+            "10.0.2.2" if resolved_serial.startswith("emulator-") else lan_ip()
+        )
         self.proxy = ProxyHarness(
-            serial=serial or cfg.get("serial_hint", "emulator-5554"),
-            host_ip=proxy_cfg.get("host_ip", "10.0.2.2"),
+            serial=resolved_serial,
+            host_ip=host_ip,
             port=proxy_cfg.get("port", 8080),
         )
         self.addons: dict[str, str] = proxy_cfg.get("addons", {})
@@ -107,11 +130,14 @@ def _exec_step(step: dict, ctx: _Ctx) -> None:
     elif "reset" in step:
         spec = step["reset"]
         app = spec.get("app", "EpicTV")
+        # agent-device `open` resolves by app NAME, but `am force-stop` needs the
+        # PACKAGE. Passing the name to force-stop silently no-ops (no cold boot).
+        package = spec.get("package")
         until_state = spec.get("until_state")
         timeout = float(spec.get("timeout", 30))
         dismiss_toast = spec.get("dismiss_toast", False)
         dismiss_key = spec.get("dismiss_key", "DPAD_CENTER")
-        ctx.adb.shell(f"am force-stop {app}")
+        ctx.adb.shell(f"am force-stop {package or app}")
         ctx.device.open_app(app)
         if until_state:
             check = state_check_fn(ctx.registry, until_state, adb=ctx.adb, device=ctx.device, work_dir=ctx.work_dir)
@@ -140,6 +166,13 @@ def _exec_step(step: dict, ctx: _Ctx) -> None:
                 time.sleep(settle_s)
         except AgentDeviceError:
             pass
+    elif "dismiss_rn_overlay" in step:
+        # RN dev LogBox (warning/error overlay) blocks a11y interaction and
+        # doesn't reliably close on DPAD_CENTER. No-op-safe when absent.
+        try:
+            ctx.device.dismiss_rn_overlay()
+        except AgentDeviceError:
+            pass
     elif "wait_log" in step:
         raw = step["wait_log"]
         if isinstance(raw, dict):
@@ -163,6 +196,23 @@ def _exec_step(step: dict, ctx: _Ctx) -> None:
         check = state_check_fn(ctx.registry, name, adb=ctx.adb, device=ctx.device, work_dir=ctx.work_dir)
         if not check():
             raise StepFailed(f"assert_state {name!r} did not match")
+    elif "assert_no_log" in step:
+        # Inverse of wait_log: PASS when the pattern does NOT appear within the
+        # window. Used for no-loop assertions (e.g. after the breaker gives up,
+        # the self-heal line must not keep firing). A match = failure.
+        raw = step["assert_no_log"]
+        if isinstance(raw, dict):
+            pattern = raw["pattern"]
+            window = float(raw.get("window", raw.get("timeout", 30)))
+        else:
+            pattern = raw
+            window = float(step.get("timeout", 30))
+        try:
+            result = wait_for_line(pattern, window, serial=ctx.serial, clear_buffer=True, min_s=0.0)
+        except LogWaitTimeout:
+            pass  # good: forbidden line never appeared within the window
+        else:
+            raise StepFailed(f"assert_no_log: forbidden line appeared: {result.line!r}")
     elif "proxy" in step:
         spec = step["proxy"]
         addon_path, env = resolve_mode(spec["mode"], ctx.addons, spec.get("env"))

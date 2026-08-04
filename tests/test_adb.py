@@ -1,5 +1,5 @@
 from unittest.mock import patch, MagicMock
-from tvqa.adb import Adb
+from tvqa.adb import Adb, resolve_serial, lan_ip
 
 
 def test_devices_parses_serials():
@@ -55,3 +55,41 @@ def test_wifi_enable_sends_svc_command():
         adb.wifi_enable()
         args = run.call_args[0][0]
         assert args == ["adb", "-s", "26251HFDD6RBL8", "shell", "svc", "wifi", "enable"]
+
+
+def test_resolve_serial_prefers_explicit():
+    # Explicit serial short-circuits before ever calling `adb devices`.
+    with patch("subprocess.run") as run:
+        assert resolve_serial("emulator-5554") == "emulator-5554"
+        run.assert_not_called()
+
+
+def test_resolve_serial_autodetects_sole_device():
+    fake_output = "List of devices attached\n26251HFDD6RBL8\tdevice\n\n"
+    with patch("subprocess.run") as run:
+        run.return_value = MagicMock(stdout=fake_output, returncode=0)
+        assert resolve_serial(None) == "26251HFDD6RBL8"
+
+
+def test_resolve_serial_falls_back_when_ambiguous():
+    fake_output = "List of devices attached\nemulator-5554\tdevice\n26251HFDD6RBL8\tdevice\n\n"
+    with patch("subprocess.run") as run:
+        run.return_value = MagicMock(stdout=fake_output, returncode=0)
+        assert resolve_serial(None, fallback="emulator-5554") == "emulator-5554"
+
+
+def test_resolve_serial_falls_back_when_none_attached():
+    fake_output = "List of devices attached\n\n"
+    with patch("subprocess.run") as run:
+        run.return_value = MagicMock(stdout=fake_output, returncode=0)
+        assert resolve_serial(None, fallback="emulator-5554") == "emulator-5554"
+
+
+def test_lan_ip_returns_socket_name():
+    with patch("socket.socket") as sock_cls:
+        sock = MagicMock()
+        sock.getsockname.return_value = ("192.168.1.50", 0)
+        sock_cls.return_value = sock
+        assert lan_ip() == "192.168.1.50"
+        sock.connect.assert_called_once_with(("8.8.8.8", 80))
+        sock.close.assert_called_once()

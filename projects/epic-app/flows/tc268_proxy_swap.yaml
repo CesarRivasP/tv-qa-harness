@@ -1,38 +1,52 @@
 # #268 — Mid-playback proxy swap (black flash + rewind fix)
 # Goal: verify the original symptom (black flash + rewind to 00:00) never reproduces.
-# Harness: vodswap mode (only mode that yields a positive swap winner).
+# Harness: vodswap mode (degrades proxy2 with 502; healthy proxies survive).
 # Primary check: TC8 no-black-flash + TC2/TC4 positive swap end-to-end.
 # Reference: e2e_test_suite.md §#268
 name: tc268_proxy_swap
 description: "VOD playback with vodswap proxy degradation; verify swap preserves position, no black flash."
 steps:
-  - open_app: EpicTV
-  - wait_state: home_screen_rail
-    timeout: 20
-  # Open a VOD title (TODO: calibrate navigation to a series/VOD row)
-  - keyevent: DPAD_DOWN
+  # Preconditions (performed by human before run):
+  #   - App is foregrounded on home_screen_rail (already logged-in & profile selected).
+  #   - No overlay/modal is present.
+  - wait_state:
+      state: home_screen_rail
+      timeout: 10
+  # Navigate via sidebar to Movies.
+  - keyevent: DPAD_LEFT
+  - sleep: 1
+  - keyevent: DPAD_DOWN   # My list
   - sleep: 0.5
-  - keyevent: DPAD_DOWN
+  - keyevent: DPAD_DOWN   # Movies
   - sleep: 0.5
-  - keyevent: DPAD_CENTER
-  - sleep: 2
+  - keyevent: DPAD_CENTER # enter Movies
+  - sleep: 3
+  - keyevent: DPAD_DOWN   # first content row
+  - sleep: 1
+  - keyevent: DPAD_CENTER # focus title
+  - sleep: 1
+  - keyevent: DPAD_CENTER # play
+  - sleep: 3
   - wait_state: vod_player
-    timeout: 15
-  - keyevent: DPAD_CENTER
+    timeout: 20
   - sleep: 5
-  # Start proxy degrading the active proxy (vodswap)
-  - proxy:
-      mode: vodswap
-      env:
-        EPIC_TARGET_PROXY: proxy2
-        EPIC_TARGET_SPEED_FAIL: kill
-  - sleep: 15       # allow swap to trigger via onError or excessive buffering
-  # Proxy should swap to a healthy proxy; stop to clean up
+  - dismiss:
+      key: DPAD_CENTER
+      indicators: ["overlay", "toast", "warning", "error", "logbox"]
+      settle: 1
+  # Start proxy degrading the active proxy (vodswap defaults: proxy2 + 502).
+  - proxy: {mode: vodswap}
+  # Wait for degradation/swap signals in logcat instead of blind sleep.
+  - wait_log:
+      pattern: "playerFailed|proxy2.*502|swap|winner|proxy3|changed.*true"
+      timeout: 60
+      min_s: 5
+  # Proxy should swap to a healthy proxy; stop to clean up.
   - proxy_stop: {}
-  - sleep: 5
-  # Should still be in player, not black/rewound
+  - sleep: 10
+  # Should still be in player, not black/rewound.
   - assert_state: vod_player
-  # Return to home
+  # Return to home.
   - keyevent: BACK
   - sleep: 1
   - assert_state: home_screen_rail

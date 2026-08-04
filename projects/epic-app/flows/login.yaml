@@ -1,26 +1,41 @@
 name: login
-# Calibrated 2026-07-31 on emulator-5554 with EpicTV (Metro bundler).
-# IMPORTANT: replace env vars with real credentials before running, or set
-# TVQA_USERNAME / TVQA_PASSWORD in your shell.
+# Calibrated 2026-08-02 on emulator-5554 with EpicTV debug build v1.3.37.development.
+# IMPORTANT: set TVQA_USERNAME / TVQA_PASSWORD in your shell.
+# Pattern for React Native TV TextInput with soft keyboard:
+#   1. DPAD_CENTER on focused field → opens keyboard
+#   2. type → writes text
+#   3. keyevent 66 (ENTER) → commits and closes keyboard
 steps:
   - open_app: EpicTV
   - wait_state: login_form
     timeout: 20
-  - keyevent: DPAD_UP
-  - keyevent: DPAD_UP
-  - keyevent: DPAD_UP
+  # Username field is focused by default on fresh launch
   - keyevent: DPAD_CENTER
-  - sleep: 1
+  - sleep: 2
   - type: "$TVQA_USERNAME"
   - keyevent: 66
+  - sleep: 2
+  # Navigate DOWN from username → password field
+  - keyevent: DPAD_DOWN
   - sleep: 1
   - keyevent: DPAD_CENTER
-  - sleep: 1
+  - sleep: 2
   - type: "$TVQA_PASSWORD"
   - keyevent: 66
+  - sleep: 2
+  # Navigate DOWN from password → Recordarme → login_button
+  - keyevent: DPAD_DOWN
   - sleep: 1
   - keyevent: DPAD_DOWN
-  - keyevent: DPAD_DOWN
+  - sleep: 1
   - keyevent: DPAD_CENTER
+  - sleep: 15
   - wait_state: profile_select
-    timeout: 15
+    timeout: 20
+  # Select "cesar" profile (navigate LEFT from default focus, then CENTER)
+  - keyevent: DPAD_LEFT
+  - sleep: 1
+  - keyevent: DPAD_CENTER
+  - sleep: 10
+  - wait_state: home_screen_rail
+    timeout: 20

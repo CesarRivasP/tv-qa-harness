@@ -146,6 +146,60 @@ plus the one-command `network_fault_recovery.yaml` (origin403 → error modal �
   loop** (heal fired on NetInfo's immediate current-state callback, resetting the breaker every
   ~35s). Found + fixed (edge guard `sawOffline`) + device-verified: player exhausts and stays on
   "Channel unavailable", no loop.
+- **⚠️ 2026-08-03 — E2E-2 attempted with a REAL WiFi cutoff instead of `origin403`, exposed a
+  gap: see #280.** `origin403` fails at proxy/CDN level and never trips
+  `NetInfo.isInternetReachable`, so the global "Network Error" screen (`useNetworkError.js`,
+  15s threshold) never appears and the player breaker runs free to genuine exhaustion — that's
+  what E2E-2's 07-30 pass actually exercised. A **real** WiFi radio-off (AMC live, held ~150s to
+  span the full 8-retry backoff ladder) hits the global screen first: it unmounts the player at
+  ~15s with the breaker stuck at `retryCount:2`, never reaches `isExhausted`, and on reconnect
+  the global screen self-dismisses back to the Live TV grid **without resuming the channel** —
+  `handleRecoverFromExhausted` never fires because exhaustion itself is never reached this way.
+  **#269's exhausted-self-heal is therefore verified only against proxy-level failures, not
+  against genuine connectivity loss** — open question for whoever picks up #280.
+
+---
+
+## #279 — `ERROR_CODE_IO_NETWORK_CONNECTION_FAILED` missing from reload allowlist
+
+**Goal:** confirm `handleReloadVideo` fires for a VOD `onError` carrying ExoPlayer's dedicated
+network-loss code, not just `ERROR_CODE_IO_BAD_HTTP_STATUS` / `ERROR_CODE_IO_UNSPECIFIED`. Fix:
+added `'ExoPlaybackException: ERROR_CODE_IO_NETWORK_CONNECTION_FAILED'` to `ERRORS` in
+`components/VideoPlayer/constants.js`.
+
+**Distinct from #269 E2E-1:** #269's VOD case is a silent buffering stall (`isStalled`, no
+`onError` at all). This case is an **explicit `onError`** — a real WiFi radio cycle mid-playback
+throws `ExoPlaybackException: Source error` (root cause `UnknownHostException`, DNS not yet
+resolved in the post-reconnect revalidation window) with `errorString` set to
+`ERROR_CODE_IO_NETWORK_CONNECTION_FAILED`. Pre-fix, this code fell through the allowlist check
+in `usePlayerActions.js:onError` straight to `LoggerUtil.loggerPlayerError` (Sentry-only) —
+`handleReloadVideo` never ran, zero `HANDLERELOADVIDEO` log, player wedged on the error frame
+indefinitely with no recovery path (worse than #269: not even the first breaker retry fires).
+
+**Oracle (grep-able):** `HANDLERELOADVIDEO` with `reason:"stale"` appearing within a few seconds
+of the reconnect; absence = regression.
+
+**Repro (real device only — needs a genuine WiFi radio cycle, no AVD/mitmproxy substitute):**
+1. Play VOD to `ONLOAD`.
+2. `adb shell svc wifi disable` → wait ~8s → `adb shell svc wifi enable` (tight, single command
+   chain — don't let the gap grow past ~10s or you drift into #269's exhausted/network-error
+   territory instead of this specific onError path).
+3. Watch logcat for `ExoPlaybackException` + `HANDLERELOADVIDEO`.
+
+- **⚠️ Physical device + USB adb required.** Wireless adb dies the instant WiFi disables (the
+  control channel rides the same radio) — see `feedback_physical_tv_usb_adb_network_toggle`
+  memory. USB-C data cable + "Depuración USB" (separate toggle from "Depuración inalámbrica")
+  keeps `adb devices -l` alive through the whole cycle.
+- **Last device run:** 2026-08-03 ✅ — pre-fix repro confirmed (Chromecast `sabrina`, VOD "The
+  Mandalorian and Grogu"): exact `errorString` captured via temporary diagnostic log (reverted),
+  zero recovery observed for 60s+. Fix applied (`ERRORS` allowlist) same session, then
+  **post-fix re-verified same device/session**: identical WiFi cycle → same
+  `ERROR_CODE_IO_NETWORK_CONNECTION_FAILED` → `HANDLERELOADVIDEO {retryCount:1,
+  reason:"stale"}` fired → remount → `ONLOAD {reloadVideo:true, playerTime:282.7}` — resumed
+  from the exact pre-error position, no user input. First attempt of the post-fix pass hit a
+  clean reconnect (DNS resolved before ExoPlayer retried, no error at all) — this error is
+  timing-dependent on the DNS revalidation window, not deterministic every cycle; needed a
+  second WiFi cycle to reproduce and confirm the fix.
 
 ---
 

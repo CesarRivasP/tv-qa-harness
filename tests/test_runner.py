@@ -340,6 +340,49 @@ def test_run_flow_wait_log_dict_syntax_returns_match(tmp_path):
     wait_mock.assert_called_once_with("hello", 5, serial="emulator-5554", clear_buffer=True, min_s=0.0)
 
 
+def test_run_flow_assert_no_log_passes_when_absent(tmp_path):
+    # assert_no_log PASSES when the forbidden pattern never appears (wait_for_line
+    # raises LogWaitTimeout) — the no-loop oracle for #269.
+    flow_path = _write_flow(tmp_path, {
+        "name": "noloop",
+        "steps": [
+            {"assert_no_log": {"pattern": "self-heal on network return", "window": 5}},
+        ],
+    })
+    with patch("tvqa.runner.Adb"), patch("tvqa.runner.AgentDevice"), \
+         patch("tvqa.runner.ProxyHarness"), \
+         patch("tvqa.runner.wait_for_line") as wait_mock:
+        from tvqa.logwait import LogWaitTimeout
+        wait_mock.side_effect = LogWaitTimeout("pattern not seen within 5s")
+        result = run_flow(flow_path, project_dir=_project(tmp_path), serial="emulator-5554")
+
+    assert result.passed is True
+    wait_mock.assert_called_once_with(
+        "self-heal on network return", 5, serial="emulator-5554", clear_buffer=True, min_s=0.0
+    )
+
+
+def test_run_flow_assert_no_log_fails_when_present(tmp_path):
+    # A match = the forbidden line fired = failure.
+    flow_path = _write_flow(tmp_path, {
+        "name": "noloop_fail",
+        "steps": [
+            {"assert_no_log": {"pattern": "self-heal on network return", "window": 5}},
+        ],
+    })
+    with patch("tvqa.runner.Adb"), patch("tvqa.runner.AgentDevice"), \
+         patch("tvqa.runner.ProxyHarness"), \
+         patch("tvqa.runner.wait_for_line") as wait_mock:
+        from tvqa.logwait import LogWaitResult
+        wait_mock.return_value = LogWaitResult(
+            matched=True, line="SELF-HEAL ON NETWORK RETURN (EXHAUSTED)", elapsed_s=3.0
+        )
+        result = run_flow(flow_path, project_dir=_project(tmp_path), serial="emulator-5554")
+
+    assert result.passed is False
+    assert "forbidden line appeared" in result.detail
+
+
 def test_run_flow_wait_log_min_s_catches_too_fast(tmp_path):
     flow_path = _write_flow(tmp_path, {
         "name": "logmins",

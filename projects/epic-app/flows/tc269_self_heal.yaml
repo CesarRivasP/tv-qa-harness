@@ -8,32 +8,72 @@
 name: tc269_self_heal
 description: "Live with origin403 until exhaustion; verify player stays on 'Channel unavailable', no heal loop."
 steps:
-  - open_app: EpicTV
-  - wait_state: home_screen_rail
-    timeout: 20
-  # Navigate to Live TV
-  - keyevent: DPAD_RIGHT  # TODO(calibrate): reach Live TV
-  - keyevent: DPAD_RIGHT
-  - keyevent: DPAD_CENTER
-  - sleep: 2
+  # Cold-boot. Session persists via Recordarme (remember-me) → auto-login lands
+  # DIRECTLY on Home (no login typing, no profile select). Device prep is a
+  # one-time preflight: appops REQUEST_INSTALL_PACKAGES allow (kills the dev-build
+  # install prompt) + screensaver off. See docs/NET_E2E_269_PLAN.md.
+  - reset:
+      app: EpicTV
+      package: com.epictv     # force-stop needs the package, not the app name
+      until_state: home_screen_rail
+      timeout: 60             # dev build loads JS from Metro; cold boot ~25-30s
+      dismiss_toast: true
+  # Navigate via sidebar to Live TV. Blind D-pad counting is flaky on cold boot
+  # (drawer animation eats keypresses) → press the item by a11y label instead.
+  - keyevent: DPAD_LEFT       # open sidebar
+  - sleep: 3    # sidebar expand animation timing is variable on physical device;
+                # `press` taps by ABSOLUTE coords, so a too-early tap lands on the
+                # wrong (collapsed-position) item. Verified live 2026-08-03.
+  - press: 'label="Live TV"'
   - wait_state: live_tv_grid
-    timeout: 15
-  # Open a live channel
-  - keyevent: DPAD_CENTER
+    timeout: 20
+  - sleep: 1.5
+  # PRIMING PLAY (throwaway): the FIRST <Video> mount after cold-boot on this
+  # device silently never fires onLoad (black screen, no onLoad/onError, forever
+  # — confirmed live 2026-08-03, 4/4 repro). The SECOND mount in the same
+  # session always works (~2.5s to ONLOAD, 2/2 repro). Root cause looks like a
+  # first-mount surface/decoder warmup bug in the app itself, unrelated to
+  # #269 — out of scope here, so we just eat one throwaway play+back instead of
+  # chasing it. Play a NAMED channel, not the first grid item: the first entries
+  # in this grid are the user's home security cameras ("1. ACCESO TOTAL 24/7",
+  # "BAÑO", "SALA", "COCINA"...) which are unreliable anyway.
+  - press: 'label="AMC"'
   - sleep: 5
-  # Start origin403 to poison the playlist
+  - keyevent: KEYCODE_BACK
+  - sleep: 2
+  # The priming play often leaves an RN dev LogBox overlay behind (state-update-
+  # after-unmount warning from the throwaway mount) that blocks a11y interaction
+  # and doesn't reliably close on DPAD_CENTER. Confirmed live 2026-08-03.
+  - dismiss_rn_overlay: {}
+  # Real play: second mount, reliably reaches ONLOAD.
+  - press: 'label="AMC"'
+  - sleep: 3
+  - dismiss:
+      key: DPAD_CENTER
+      indicators: ["overlay", "toast", "warning", "error", "logbox"]
+      settle: 1
+  # Playback-reached gate (NO OCR): player screen is a11y 0-node, so we gate on
+  # the JS log line. onLoad/onReadyForDisplay fire only once media actually loads.
+  # logger.js uppercases the flow name → logcat shows ONLOAD / ONREADYFORDISPLAY.
+  - wait_log:
+      pattern: "ONLOAD|ONREADYFORDISPLAY"
+      timeout: 40
+      min_s: 2
+  # Start origin403 to poison the playlist.
   - proxy: {mode: origin403, env: {EPIC_EXPIRE_AFTER_S: "30"}}
-  # Wait for breaker to exhaust (retryCount climbs to MAX_RETRIES=8)
-  - sleep: 90
-  # Verify exhausted state reached (PlayerError / Channel unavailable)
-  - wait_state: channel_unavailable
-    timeout: 30
-  # CRITICAL: after the 2026-07-30 fix, the player should STAY here.
-  # If the pre-fix bug is present, you would see repeated
-  # 'self-heal on network return (exhausted)' lines in logcat every ~35s.
-  # We explicitly do NOT expect that log line here.
-  # (Oracle: `adb logcat | rg 'self-heal'` should show 0 matches after exhaustion.)
-  - proxy_stop: {}
+  # Reload loop engages: useReloadPlayer.loggerInfo('handleReloadVideo') on each
+  # breaker retry → logcat HANDLERELOADVIDEO. Proves the fault reached the player.
+  - wait_log:
+      pattern: "HANDLERELOADVIDEO"
+      timeout: 120
+      min_s: 10
+  # Let the breaker exhaust its MAX_RETRIES and give up.
   - sleep: 30
-  # Should still be on channel_unavailable (not looping back to loading)
-  - assert_state: channel_unavailable
+  - proxy_stop: {}
+  # NO-LOOP ORACLE (NO OCR): origin403 keeps NetInfo connected the whole time, so
+  # no real offline->online edge ever occurs → the self-heal must NOT fire. If the
+  # pre-fix loop bug regressed (breaker never wins), 'self-heal on network return
+  # (exhausted)' repeats every ~35s. assert_no_log PASSES only if it stays absent.
+  - assert_no_log:
+      pattern: "self-heal on network return"
+      window: 45
