@@ -171,10 +171,14 @@ my-project/
 ```yaml
 package: com.example.app
 app_name: MyApp
-serial_hint: emulator-5554
+# serial_hint / proxy.host_ip: OPTIONAL — autodetected from whichever single
+# adb device is attached (emulator-alias 10.0.2.2 vs. this machine's live LAN
+# IP for a physical device). Only set them if 2+ devices can be attached at
+# once, or autodetect picks the wrong interface. Don't hardcode a physical
+# device's serial/IP here — it breaks emulator/CI runs and goes stale the
+# next time that device changes network.
 expected_resolution: "1920x1080"
 proxy:
-  host_ip: "10.0.2.2"    # emulator alias for host
   port: 8080
   # Addon aliases — used by `proxy: {mode: X}` steps
   addons:

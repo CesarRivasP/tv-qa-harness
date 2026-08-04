@@ -164,7 +164,9 @@ addon path + env vars via the `project.yaml` registry.
 
 ```yaml
 proxy:
-  host_ip: "10.0.2.2"
+  # host_ip: omit it — autodetected (10.0.2.2 for an emulator serial, else
+  # this machine's live LAN IP). Only set it explicitly if autodetect picks
+  # the wrong interface (e.g. VPN active).
   port: 8080
   addons:
     epic_stall: "../../../epic-app/.../epic_stall_test.py"
@@ -222,19 +224,33 @@ step is a single unconditional keypress.
 ```yaml
 - reset:
     app: EpicTV
+    package: com.epictv       # force-stop needs the PACKAGE, not the display name
     until_state: home_screen_rail
     timeout: 30
     dismiss_toast: true      # optional: dismiss LogBox/dev overlay if present
     dismiss_key: DPAD_CENTER
 ```
 
-1. `adb am force-stop <app>`
-2. `open_app <app>`
+1. `adb am force-stop <package or app>` — pass `package`; the display `app`
+   name silently no-ops force-stop (no real cold boot).
+2. `open_app <app>` — this one resolves by display NAME, not package.
 3. Poll `until_state` up to `timeout`
 4. If `dismiss_toast: true`, check snapshot for overlay indicators and dismiss
 
 This is the preferred entry step for every flow because `open_app` alone only
 foregrounds the last screen, it does not reset state.
+
+### `dismiss_rn_overlay` — close the RN dev LogBox
+
+```yaml
+- dismiss_rn_overlay: {}
+```
+
+Closes a React Native dev warning/error (LogBox) overlay via `agent-device
+react-native dismiss-overlay`. No-op-safe if none is present. More reliable
+than guessing a keyevent for LogBox, which doesn't always close on
+`DPAD_CENTER`. Common after a throwaway/priming play leaves a
+state-update-after-unmount warning behind.
 
 ### `dismiss` — conditional overlay dismiss
 
@@ -265,6 +281,43 @@ produced false greens before the buffer-clear fix.
 
 The matched line + elapsed time are returned in the flow JSON as `log_line` and
 `log_elapsed_s`, so an agent can sanity-check timing without reading a PNG.
+
+### `assert_no_log` — no-loop oracle (inverse of wait_log)
+
+```yaml
+- assert_no_log:
+    pattern: "self-heal on network return"
+    window: 45
+```
+
+PASSES only if `pattern` does NOT appear in logcat within `window` seconds. A
+match = failure. Use for regression steps where a line firing at all means a
+bug (e.g. a self-heal loop after the breaker should have given up for good).
+`timeout` is accepted as an alias for `window`.
+
+## Device targeting (autodetect — usually needs zero config)
+
+`serial_hint` / `proxy.host_ip` / `agent_device_name` are intentionally
+**unset** in `project.yaml`. `runner.py` resolves them from whatever single
+adb device is attached:
+
+- **serial** — `resolve_serial()` (`tvqa/adb.py`) uses the sole attached
+  device; `serial_hint` in `project.yaml` is only a fallback for the
+  ambiguous case (0 or 2+ devices attached at once).
+- **proxy host_ip** — `"10.0.2.2"` if the resolved serial starts with
+  `emulator-`, else this machine's live LAN IP via `lan_ip()`. Never
+  hardcode a physical device's LAN IP in `project.yaml` — it changes across
+  networks/DHCP and silently breaks the next session on a different WiFi.
+- **agent-device name/session** — `agent_device_name` only matters if
+  `agent-device` itself has 2+ registered devices; `None` auto-picks, which
+  is fine for the common single-target case. Prefer the env vars
+  `TVQA_DEVICE_NAME` / `TVQA_DEVICE_SESSION` over editing `project.yaml` when
+  pinning a physical target for one session.
+
+**Do not commit a device-specific `serial_hint`/`host_ip`/`agent_device_name`
+into `project.yaml`.** A prior session did this after calibrating against a
+physical Chromecast, and it would have broken every emulator/CI run using the
+committed defaults (fixed in v0.3.3).
 
 ## Example correct session
 
