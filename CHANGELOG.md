@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-08-04
+
+### Added
+
+- **`Adb.wifi_enable()` / `Adb.wifi_disable()`** (`tvqa/adb.py`) — real
+  connectivity-loss toggle via `svc wifi enable/disable`. Existing mitmproxy
+  failure modes (`origin403`, `token403`, etc.) fail at the proxy/CDN layer
+  and never trip `NetInfo.isInternetReachable` on-device, so any recovery
+  path gated on that check (e.g. EpicTV's #269 self-heal-on-reconnect) was
+  going unexercised by the harness. This is the only way to trigger a
+  genuine offline→online edge.
+  - On a physical device driven over wireless adb, `wifi_disable()` kills its
+    own control channel (wifi IS the transport) — requires USB transport
+    (separate "USB debugging" toggle) for physical devices. No-op concern on
+    emulators, which don't use wireless adb.
+
 ## [0.2.0] - 2026-07-31
 
 ### Added
